@@ -1,0 +1,245 @@
+---
+title: "Entropy in child language"
+author: "Claire Bergey and Dan Yurovsky"
+date: '`r Sys.Date()`'
+output:
+  pdf_document:
+  toc: no
+html_document:
+  code_folding: show
+number_sections: no
+theme: lumen
+toc: no
+toc_float: no
+---
+  
+```{r setup, include = FALSE}
+library(knitr)
+
+library(DBI)
+library(here)
+library(data.table)
+library(tidytext)
+library(RMySQL)
+library(feather)
+library(entropy)
+library(tidyboot)
+library(widyr)
+library(tidyverse)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+
+# LDP auxiliary functions
+source(here("helpers/read_ldp.R"))
+
+theme_set(theme_classic(base_size = 14))
+```
+
+Read in conversation data
+```{r, eval=T, message=FALSE}
+MIN_VISITS <- 5
+
+Mode <- function(x) {
+  x <- x[!is.na(x)]
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+#### Load and Clean Data
+# Read in LDP data
+ldp <- connect_to_ldp()
+
+# subject demographics
+demos <- get_table(ldp, "subjects") %>%
+        filter(lesion == "") %>%
+        select(id, sex, race, ethn) %>%
+        collect()
+
+# visits information and more subject demographics
+visits <- get_table(ldp, "home_visits") %>%
+  distinct(id, age_years, subject, visit_type, completed, income_category, 
+           mother_education) %>%
+  collect() %>%
+  filter(visit_type != "SB5") %>%
+  mutate(visit_type = as.numeric(gsub("[^0-9]", "", visit_type))) %>%
+  rename(visit = visit_type) %>%
+  mutate(completed = as.logical(completed),
+         income_category = as.numeric(income_category))
+
+subjs <- visits %>%
+  group_by(subject) %>%
+  summarise(completed = sum(completed),
+            income_category = Mode(income_category),
+            mother_education = Mode(mother_education)) %>%
+  filter(completed >= 12) %>%
+  select(-completed) %>%
+  right_join(demos, by = c("subject" = "id"))
+
+session_ages <- visits %>%
+        filter(subject %in% subjs$subject, completed) %>%
+        select(subject, visit, age_years) %>%
+        rename(age = age_years) %>%
+        arrange(subject, visit)
+```
+
+Get other measures
+```{r load_measures}
+ppvt <- get_table(ldp, "ppvt") %>%
+  collect() %>%
+  select(-id) %>%
+  rename(id = visit) %>%
+  left_join(visits) %>%
+  filter(subject %in% subjs$subject) %>%
+  rename(ppvt = ppvt_raw) %>%
+  select(subject, visit, age_years, ppvt)
+  
+cdi_ws <- get_table(ldp, "cdi_words_and_sentences") %>%
+  select(id, visit, cdis_1a1_num, cdis_2e_num) %>%
+  collect() %>%
+  select(-id) %>%
+  rename(id = visit) %>%
+  left_join(visits) %>%
+  filter(subject %in% subjs$subject) %>%
+  rename(cdi_ws = cdis_1a1_num, sent_comp = cdis_2e_num) %>%
+  select(subject, visit, age_years, cdi_ws, sent_comp) %>%
+  arrange(subject, visit)
+
+measures <- full_join(ppvt, cdi_ws, by = c("subject", "visit", "age_years")) %>%
+  gather(measure, value, ppvt, cdi_ws) %>%
+  filter(!is.na(value)) %>%
+  arrange(subject, measure, visit) %>%
+  mutate(person = "child")
+```
+
+Set up utterances for computing alignment
+```{r setup_alignment}
+# read data from sql connection
+utterances <- tbl(ldp, "utterances") %>%
+  select(subject, session, line, p_chat, c_chat) %>%
+  filter(p_chat != "" | c_chat != "") %>%
+  collect() %>%
+  filter(subject %in% unique(visits$id)) %>%
+  mutate(order = 1:n())
+  
+# better organization of chat by person, subject, session, run
+split_utts <- utterances %>%
+  gather(person, chat, c(p_chat, c_chat)) %>%
+  mutate(person = if_else(person == "p_chat", "Parent", "Child")) %>%
+  filter(chat != "") %>%
+  arrange(order) %>%
+  mutate(run = rleid(subject, session, person)) %>%
+  group_by(run, subject, session, person) %>%
+  summarise(chat = paste0(chat, collapse = " ")) 
+
+#splits up run utterances into individual token words
+tokens <- split_utts %>%
+  unnest_tokens(word, chat) %>%
+  arrange(run, subject, session) %>%
+  filter(!word %in% c("xxx", "zzz", "zz"))
+
+types <- tokens %>%
+  group_by(session, subject, person, word) %>%
+  summarise(n = n()) 
+
+words <- types %>%
+  ungroup() %>%
+  distinct(word)
+
+n_words <- nrow(words)
+
+session_tokens <- tokens %>%
+  group_by(person, session, subject, word) %>%
+  summarise(tokens = n()) %>%
+  summarise(tokens = sum(tokens), types = n(), unsaid_types = n_words - types)
+```
+
+
+```{e}
+entropies <- types %>%
+  left_join(session_tokens, by = c("subject", "session", "person")) %>%
+  group_by(person, session, subject) %>%
+  mutate(p = (n + 1/n_words)/(tokens + 1)) %>%
+  summarise(said_entropy = sum(-p * log(p)),
+            unsaid_p = (1/n_words)/(mean(tokens) + 1),
+            unsaid_types = mean(unsaid_types)) %>%
+  mutate(entropy = said_entropy + unsaid_types*(- unsaid_p * log(unsaid_p))) %>%
+  select(-unsaid_p, -unsaid_types)
+
+group_entropies <- entropies %>%
+  group_by(person, session) %>%
+  tidyboot_mean(entropy)
+
+ggplot(group_entropies,
+       aes(x = session, y = empirical_stat)) + 
+  facet_wrap(~ person) +
+  geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper), 
+                  position = position_dodge(.25)) +
+  labs(y = "entropy")
+```
+
+```{r}
+entropies %>%
+  group_by(person, session) %>%
+  mutate(entropy = scale(entropy)) %>%
+  spread(person, entropy) %>%
+  group_by(session) %>%
+  summarise(cor = cor(Parent, Child, use = "complete")) %>%
+  pull(cor) %>%
+  hist()
+```
+
+```{r}
+subj_measures <- measures %>%
+  group_by(subject, measure) %>%
+  summarise(value = mean(value, na.rm = T))
+  
+subj_entropies <- entropies %>%
+  group_by(subject, person) %>%
+  summarise(entropy = mean(entropy, na.rm = T)) %>%
+  left_join(subj_measures) %>%
+  filter(!is.na(measure)) %>%
+  spread(measure, value) %>%
+  gather(measure, value, entropy, cdi_ws, ppvt) %>%
+  group_by(person, measure) %>%
+  mutate(value = scale(value)) %>% 
+  spread(measure, value) %>%
+  filter(entropy > -4)
+
+subj_entropies %>%
+  select(subject, person, entropy) %>%
+  spread(person, entropy) %>%
+  ggplot(aes(x = Parent, y = Child)) + 
+  geom_point() + 
+  geom_smooth(method = "lm")
+
+ggplot(subj_entropies, aes(x = entropy, y = ppvt, color = person)) + 
+  facet_wrap(~person) +
+  geom_point() + 
+  geom_smooth(method = "lm")
+
+parents <- subj_entropies %>%
+  filter(person == "Parent") %>%
+  gather(measure, value, cdi_ws, entropy, ppvt) %>%
+  pairwise_cor(measure, subject, value, use = "complete")
+
+children <- subj_entropies %>%
+  filter(person == "Child") %>%
+  gather(measure, value, cdi_ws, entropy, ppvt) %>%
+  pairwise_cor(measure, subject, value, use = "complete")
+
+pairwise <- subj_entropies %>%
+  select(subject, person, entropy) %>%
+  spread(person, entropy) %>%
+  summarise(cor = cor(Child, Parent))
+
+```
+
+```{r}
+subj_entropies %>%
+  left_join(select(session_tokens, subject, person, session, tokens) %>% 
+              group_by(person, subject) %>%
+              summarise(tokens = mean(tokens))) %>%
+  group_by(person) %>%
+  summarise(cor = cor(entropy, tokens, use = "complete"))
+``````
