@@ -1,14 +1,16 @@
 ---
-title: "Entropy in child language"
-author: "Claire Bergey and Dan Yurovsky"
-date: '`r Sys.Date()`'
-output:
-  pdf_document:
-  toc: no
 html_document:
   code_folding: show
+author: "Claire Bergey and Dan Yurovsky"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: null
+  toc: no
 number_sections: no
 theme: lumen
+title: "Entropy in child language"
 toc: no
 toc_float: no
 ---
@@ -25,6 +27,7 @@ library(feather)
 library(entropy)
 library(tidyboot)
 library(widyr)
+library(feather)
 library(tidyverse)
 
 opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
@@ -37,7 +40,7 @@ theme_set(theme_classic(base_size = 14))
 ```
 
 Read in conversation data
-```{r, eval=T, message=FALSE}
+```{r, eval=T, message=FALSE, eval = F}
 MIN_VISITS <- 5
 
 Mode <- function(x) {
@@ -84,7 +87,7 @@ session_ages <- visits %>%
 ```
 
 Get other measures
-```{r load_measures}
+```{r load_measures, eval = F}
 ppvt <- get_table(ldp, "ppvt") %>%
   collect() %>%
   select(-id) %>%
@@ -110,10 +113,12 @@ measures <- full_join(ppvt, cdi_ws, by = c("subject", "visit", "age_years")) %>%
   filter(!is.na(value)) %>%
   arrange(subject, measure, visit) %>%
   mutate(person = "child")
+
+write_feather(measures, here("data/measures.feather"))
 ```
 
 Set up utterances for computing alignment
-```{r setup_alignment}
+```{r setup_alignment, eval = F}
 # read data from sql connection
 utterances <- tbl(ldp, "utterances") %>%
   select(subject, session, line, p_chat, c_chat) %>%
@@ -138,6 +143,14 @@ tokens <- split_utts %>%
   arrange(run, subject, session) %>%
   filter(!word %in% c("xxx", "zzz", "zz"))
 
+write_feather(tokens, here("data/tokens.feather"))
+```
+
+
+```{r read-in}
+tokens <- read_feather(here("data/tokens.feather"))
+measures <- read_feather(here("data/measures.feather"))
+
 types <- tokens %>%
   group_by(session, subject, person, word) %>%
   summarise(n = n()) 
@@ -155,11 +168,38 @@ session_tokens <- tokens %>%
 ```
 
 
-```{e}
-entropies <- types %>%
+```{r smoothed_types}
+smoothed_types <- types %>%
   left_join(session_tokens, by = c("subject", "session", "person")) %>%
   group_by(person, session, subject) %>%
-  mutate(p = (n + 1/n_words)/(tokens + 1)) %>%
+  mutate(p = (n + 1/n_words)/(tokens + 1))
+```
+
+```{r kl-div}
+p1 <- smoothed_types %>%
+  filter(subject == 22, session == 4, person == "Parent")
+
+p1_values <- smoothed_types %>%
+  filter(subject == 22, session == 4, person == "Parent") %>%
+  summarise(unsaid_p = (1/n_words)/(mean(tokens) + 1))
+
+p2 <- smoothed_types %>%
+  filter(subject == 22, session == 4, person == "Child")
+
+p2_values <- smoothed_types %>%
+  filter(subject == 22, session == 4, person == "Child") %>%
+  summarise(unsaid_p = (1/n_words)/(mean(tokens) + 1))
+
+kl_data <- bind_rows(p1, p2) %>%
+  ungroup() %>%
+  select(person, word, p) %>%
+  spread(person, p) %>%
+  mutate(Child = if_else(is.na(Child), pull(p2_values, unsaid_p), Child),
+         Parent = if_else(is.na(Child), pull(p1_values, unsaid_p), Parent))
+```
+
+```{r entropy}
+entropies <- smoothed_types %>%
   summarise(said_entropy = sum(-p * log(p)),
             unsaid_p = (1/n_words)/(mean(tokens) + 1),
             unsaid_types = mean(unsaid_types)) %>%
@@ -178,7 +218,7 @@ ggplot(group_entropies,
   labs(y = "entropy")
 ```
 
-```{r}
+```{r, eval = F}
 entropies %>%
   group_by(person, session) %>%
   mutate(entropy = scale(entropy)) %>%
