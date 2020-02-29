@@ -1,0 +1,79 @@
+---
+title: "word2vec_visualizations"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(knitr)
+library(here)
+library(dplyr)
+library(entropy)
+library(tidyboot)
+library(tidyverse)
+library(reticulate)
+library(childesr)
+
+use_python("/usr/local/bin/python3")
+use_virtualenv("gensimvenv")
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+
+theme_set(theme_classic(base_size = 14))
+```
+
+```{r read-childes}
+utterances <- get_utterances(collection = "Eng-NA")
+
+cleanutts <- utterances %>%
+  filter(speaker_role %in% c("Target_Child", "Mother","Father")) %>%
+  arrange(transcript_id,utterance_order) %>%
+  mutate(gloss = str_to_lower(gloss))
+
+convo <- cleanutts %>%
+  filter(transcript_id == 2869, gloss != "") %>%
+  pull(gloss)
+
+```
+
+```{python}
+import io
+import os
+import gensim
+from gensim import utils
+import gensim.models
+import gensim.models.word2vec
+from gensim.test.utils import datapath
+import numpy as np
+
+model = gensim.models.Word2Vec.load("models/childes_adult_word2vec.model")
+
+sim = model.wv.similarity("blue","red")
+print(sim)
+
+model.wv['blue']
+model.wv['computer'] 
+model.wv['blue'] + model.wv['computer'] 
+
+
+vec_length = len(model.wv['and'])
+convo_length = len(r.convo)
+discourse_vectors = np.empty((convo_length, vec_length))
+
+for index, utt in enumerate(r.convo):
+  sum_vector = np.empty(vec_length)
+  utt_len = len(utt)
+  for word in str.split(utt):
+    if word in model.wv.vocab:
+      sum_vector = sum_vector + model.wv[word]
+    else:
+      utt_len = utt_len - 1
+  if utt_len > 0:
+    discourse_vectors[index] = [x/utt_len for x in sum_vector]
+
+    
+```
+
+
