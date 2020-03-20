@@ -14,9 +14,10 @@ library(tidyboot)
 library(tidyverse)
 library(reticulate)
 library(childesr)
+library(RColorBrewer)
 
-use_python("/usr/local/bin/python3")
-use_virtualenv("gensimvenv")
+use_python("usr/local/bin/python3")
+use_virtualenv("venv")
 
 opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
                error = FALSE, cache = TRUE, tidy = FALSE)
@@ -25,16 +26,21 @@ theme_set(theme_classic(base_size = 14))
 ```
 
 ```{r read-childes}
-utterances <- get_utterances(collection = "Eng-NA")
+utterances <- get_utterances(corpus = "Providence")
 
-cleanutts <- utterances %>%
+provcleanutts <- utterances %>%
   filter(speaker_role %in% c("Target_Child", "Mother","Father")) %>%
   arrange(transcript_id,utterance_order) %>%
   mutate(gloss = str_to_lower(gloss))
 
-convo <- cleanutts %>%
-  filter(transcript_id == 2869, gloss != "") %>%
-  pull(gloss)
+get_convo <- function(these_transcript_ids) {
+  convo <- provcleanutts %>%
+    filter(transcript_id %in% these_transcript_ids, gloss != "") %>%
+    select(gloss, utterance_order, speaker_code, num_tokens, transcript_id)
+  return(convo)
+}
+
+convos <- get_convo(c(5456))
 
 ```
 
@@ -47,33 +53,78 @@ import gensim.models
 import gensim.models.word2vec
 from gensim.test.utils import datapath
 import numpy as np
+import sklearn
+import matplotlib
+from sklearn.decomposition import IncrementalPCA    
+from sklearn.manifold import TSNE  
 
 model = gensim.models.Word2Vec.load("models/childes_adult_word2vec.model")
 
-sim = model.wv.similarity("blue","red")
-print(sim)
+convo = r.convos
 
-model.wv['blue']
-model.wv['computer'] 
-model.wv['blue'] + model.wv['computer'] 
-
-
+#def get_vectors(convo):
 vec_length = len(model.wv['and'])
-convo_length = len(r.convo)
-discourse_vectors = np.empty((convo_length, vec_length))
-
-for index, utt in enumerate(r.convo):
+convo_length = len(convo["gloss"])
+discourse_vectors = np.zeros((convo_length, vec_length))
+for index, utt in enumerate(convo["gloss"]):
   sum_vector = np.empty(vec_length)
-  utt_len = len(utt)
+  utt_len = convo["num_tokens"][index]
   for word in str.split(utt):
     if word in model.wv.vocab:
+      print(model.wv[word])
       sum_vector = sum_vector + model.wv[word]
     else:
       utt_len = utt_len - 1
   if utt_len > 0:
+    #print(sum_vector)
+    #print([x/utt_len for x in sum_vector])
     discourse_vectors[index] = [x/utt_len for x in sum_vector]
+  else:
+    discourse_vectors[index] = [0 for x in sum_vector]
+#return discourse_vectors
 
-    
+
+#def reduce_dimensions(all_convos):
+num_dimensions = 2 
+vectors = [] 
+#all_vectors = get_vectors(all_convos)
+for uttvec in discourse_vectors:
+  print("hi")
+  vectors.append(uttvec)
+vectors = np.asarray(vectors)
+vectors = np.asarray(vectors)
+vectors = TSNE(n_components=num_dimensions, random_state=0).fit_transform(vectors)
+x_vals = [v[0] for v in vectors]
+y_vals = [v[1] for v in vectors]
+vals = np.column_stack((x_vals, y_vals, all_convos["transcript_id"], all_convos["utterance_order"]))
+  
+#return vals
+
+
+convo_vecs = reduce_dimensions(r.convos)
+'''
+vectors = []
+for uttvec in all_vectors:
+  vectors.append(uttvec)
+vectors = np.asarray(vectors)
+tsne = TSNE(n_components=num_dimensions, random_state=0)
+vectors = tsne.fit_transform(vectors)
+x_vals = [v[0] for v in vectors]
+y_vals = [v[1] for v in vectors]
+vals = np.column_stack((x_vals, y_vals, all_convos["transcript_id"], all_convos["utterance_order"]))
+
+convo_vecs = vals
+'''
 ```
 
+```{r visualize}
 
+convos <- convos %>%
+  left_join(as_tibble(py$convo_vecs), by = c("transcript_id" = "V3", 
+                                             "utterance_order" = "V4"))
+
+ggplot(convos, aes(V1, V2, color = as_factor(speaker_code))) + 
+  geom_point() + 
+  facet_wrap(~ transcript_id)
+
+```
