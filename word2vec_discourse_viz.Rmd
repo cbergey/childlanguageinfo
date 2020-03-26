@@ -1,0 +1,131 @@
+---
+title: "word2vec_discourse_viz"
+output: html_document
+author: "Claire Bergey and Zoe Marshall"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=12, fig.height=8)
+
+library(knitr)
+library(here)
+library(dplyr)
+library(entropy)
+library(tidyverse)
+library(childesr)
+library(RColorBrewer)
+library(plotly)
+library(feather)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+
+theme_set(theme_classic(base_size = 14))
+```
+
+```{r load-data}
+convodata <- read_feather(here("data/childes_convo_reduced_dims.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id), utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(gloss != "yyy", gloss != "xxx")
+```
+
+```{r first-transcript}
+convodata %>%
+  filter(transcript_id == 5465) %>%
+  ggplot(aes(V1, V2, color = speaker_code)) +
+  geom_point()
+```
+
+Above: The first transcript of kid A at 21 months (1.75 years) old.
+
+
+```{r across-age}
+convodata %>%
+  filter(target_child_id == 3617) %>%
+  ggplot(aes(V1, V2, color = speaker_code)) + 
+  facet_grid(~target_child_age) +
+  geom_point() 
+```
+
+Above: All transcripts from kid A, faceted over age.
+
+
+```{r last-transcript}
+convodata %>%
+  filter(transcript_id == 5505) %>%
+  ggplot(aes(V1, V2, color = speaker_code)) + 
+  geom_point() 
+```
+
+Above: The last transcript of kid A at 40 months (3.3 years) old.
+
+
+```{r last-transcript-3d}
+fig <- convodata %>%
+  filter(transcript_id == 5505, utterance_order < 300) %>%
+  plot_ly(x=~V1, y=~V2, z=~utterance_order, type="scatter3d", 
+          mode="markers", 
+          text = ~gloss,
+          marker = list(size = 3), 
+          color=~speaker_code)
+fig
+```
+
+Above: The last transcript of kid A, with utterance order (time) on the third dimension.
+
+
+```{r kid-b}
+fig <- convodata %>%
+  filter(transcript_id == 8625) %>%
+  plot_ly(x=~V1, y=~V2, z=~utterance_order, type="scatter3d", 
+          mode="markers", 
+          text = ~gloss,
+          marker = list(size = 3), 
+          color=~speaker_code)
+fig
+
+```
+
+Above: A transcript from kid B, 3 years old.
+
+
+```{r kid-a-first}
+fig <- convodata %>%
+  filter(transcript_id == 5465) %>%
+  plot_ly(
+    x = ~V1,
+    y = ~V2,
+    color = ~speaker_code,
+    frame = ~utterance_order,
+    hoverinfo = "text",
+    type = 'scatter',
+    text = ~gloss,
+    mode = 'markers'
+  )
+fig %>% add_text(textposition = "top right") %>%
+  animation_opts(750, redraw = FALSE)
+```
+
+Above: The first transcript from kid A, playable over time.
+
+
+```{r kid-a-last}
+fig <- convodata %>%
+  filter(transcript_id == 5505) %>%
+  plot_ly(
+    x = ~V1,
+    y = ~V2,
+    color = ~speaker_code,
+    frame = ~utterance_order,
+    hoverinfo = "text",
+    type = 'scatter',
+    text = ~gloss,
+    mode = 'markers'
+  )
+fig %>% add_text(textposition = "top right") %>%
+  animation_opts(750, redraw = FALSE)
+```
+
+Above: The last transcript of kid A, playable over time.
+
