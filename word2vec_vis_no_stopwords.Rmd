@@ -36,10 +36,9 @@ stop_words <- c('yeah', 'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselv
 
 l <- length(stop_words)
 
-stopless <- convodata
 
 while (l > 0) {
-  stopless <- filter(stopless, gloss != stop_words[l])
+  convodata <- filter(convodata, gloss != stop_words[l])
   l <- l - 1
 }
 ```
