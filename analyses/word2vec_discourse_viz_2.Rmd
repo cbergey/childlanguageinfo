@@ -1,0 +1,614 @@
+---
+title: "Discourse structure over development"
+output: html_document
+author: "Zoe Marshall"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=12, fig.height=8)
+
+library(knitr)
+library(here)
+library(dplyr)
+library(entropy)
+library(tidyverse)
+library(childesr)
+library(RColorBrewer)
+library(plotly)
+library(feather)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+
+theme_set(theme_classic(base_size = 14))
+```
+
+```{r load-data}
+convodata <- read_feather(here("data/childes_convo_reduced_dims.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id), utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(!str_detect(gloss, "yyy"),!str_detect(gloss, "xxx"))
+```
+
+```{r 12-month}
+fig <- convodata %>%
+  filter(target_child_age > 12 & target_child_age < 13) %>%
+  filter(target_child_id != 3255) %>%
+  plot_ly(
+    type = 'scatter',
+    x = ~V1,
+    y = ~V2,
+    color = ~speaker_code,
+    mode = 'markers',
+    text = ~gloss,
+    hoverinfo = "text",
+    transforms = list(
+      list(
+        type = 'filter',
+        target = ~target_child_id,
+        operation = "=",
+        value = unique(convodata$target_child_id)[1]
+      )
+    )
+  ) %>%
+  layout(
+    title = "Discourse Space by Child (12 months)",
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        buttons = list(
+
+          list(method = "restyle",
+               args = list("transforms[0].value", unique(convodata$target_child_id)[98]),
+               label = "Child 4860"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", unique(convodata$target_child_id)[108]),
+               label = "Child 5034")
+          )
+        )
+      )
+    )
+fig
+```
+
+Above: Discourse spaces of 12-month-olds
+
+```{r 13-months}
+fig <- convodata %>%
+  filter(target_child_age >= 13 & target_child_age < 14) %>%
+  plot_ly(
+    type = 'scatter',
+    x = ~V1,
+    y = ~V2,
+    color = ~speaker_code,
+    mode = 'markers',
+    text = ~gloss,
+    hoverinfo = "text",
+    transforms = list(
+      list(
+        type = 'filter',
+        target = ~target_child_id,
+        operation = "=",
+        value = unique(convodata$target_child_id)[1]
+      )
+    )
+  ) %>%
+  layout(
+    title = "Discourse Space by Child (13 months)",
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        buttons = list(
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", unique(convodata$target_child_id)[2]),
+               label = "Child 2479"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", unique(convodata$target_child_id)[71]),
+               label = "Child 4538")
+          )
+        )
+      )
+    )
+fig
+```
+
+Above: Discourse spaces of 13-month-olds.
+
+```{r 14-month}
+fig <- convodata %>%
+  filter(target_child_age >= 14 & target_child_age < 15) %>%
+  plot_ly(
+    type = 'scatter',
+    x = ~V1,
+    y = ~V2,
+    color = ~speaker_code,
+    mode = 'markers',
+    text = ~gloss,
+    hoverinfo = "text",
+    transforms = list(
+      list(
+        type = 'filter',
+        target = ~target_child_id,
+        operation = "=",
+        value = unique(convodata$target_child_id)[1]
+      )
+    )
+  ) %>%
+  layout(
+    title = "Discourse Space by Child (14 months)",
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        buttons = list(
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", unique(convodata$target_child_id)[3]),
+               label = "Child 2506"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", unique(convodata$target_child_id)[4]),
+               label = "Child 2536"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", unique(convodata$target_child_id)[5]),
+               label = "Child 2561"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", unique(convodata$target_child_id)[6]),
+               label = "Child 2521"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", unique(convodata$target_child_id)[47]),
+               label = "Child 3633"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", unique(convodata$target_child_id)[50]),
+               label = "Child 3670"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", unique(convodata$target_child_id)[64]),
+               label = "Child 3951")
+          )
+        )
+      )
+    )
+fig
+```
+
+Above: Discourse space of 14-month-olds
+
+```{r 15-month}
+fig <- convodata %>%
+  filter(target_child_age >= 15 & target_child_age < 16) %>%
+  plot_ly(
+    type = 'scatter',
+    x = ~V1,
+    y = ~V2,
+    color = ~speaker_code,
+    mode = 'markers',
+    text = ~gloss,
+    hoverinfo = "text",
+    transforms = list(
+      list(
+        type = 'filter',
+        target = ~target_child_id,
+        operation = "="
+      )
+    )
+  ) %>%
+  layout(
+    title = "Discourse Space by Child (15 months)",
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        buttons = list(
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 2623),
+               label = "Child 2623"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 3658),
+               label = "Child 3658"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 3694),
+               label = "Child 3694"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5005),
+               label = "Child 5005")
+          )
+        )
+      )
+    )
+fig
+```
+
+Above: Discourse space of 15-month-olds.
+
+```{r 16-month}
+fig <- convodata %>%
+  filter(target_child_age >= 16 & target_child_age < 17) %>%
+  plot_ly(
+    type = 'scatter',
+    x = ~V1,
+    y = ~V2,
+    color = ~speaker_code,
+    mode = 'markers',
+    text = ~gloss,
+    hoverinfo = "text",
+    transforms = list(
+      list(
+        type = 'filter',
+        target = ~target_child_id,
+        operation = "="
+      )
+    )
+  ) %>%
+  layout(
+    title = "Discourse Space by Child (16 months)",
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        buttons = list(
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 3167),
+               label = "Child 3167"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 3643),
+               label = "Child 3643"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5005),
+               label = "Child 5005")
+          )
+        )
+      )
+    )
+fig
+```
+
+```{r 17-month}
+fig <- convodata %>%
+  filter(target_child_age >= 17 & target_child_age < 18) %>%
+  plot_ly(
+    type = 'scatter',
+    x = ~V1,
+    y = ~V2,
+    color = ~speaker_code,
+    mode = 'markers',
+    text = ~gloss,
+    hoverinfo = "text",
+    transforms = list(
+      list(
+        type = 'filter',
+        target = ~target_child_id,
+        operation = "="
+      )
+    )
+  ) %>%
+  layout(
+    title = "Discourse Space by Child (17 months)",
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        buttons = list(
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 3167),
+               label = "Child 3167"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5005),
+               label = "Child 5005")
+          )
+        )
+      )
+    )
+fig
+```
+
+```{r 20-month}
+fig <- convodata %>%
+  filter(target_child_age >= 20 & target_child_age < 21) %>%
+  plot_ly(
+    type = 'scatter',
+    x = ~V1,
+    y = ~V2,
+    color = ~speaker_code,
+    mode = 'markers',
+    text = ~gloss,
+    hoverinfo = "text",
+    transforms = list(
+      list(
+        type = 'filter',
+        target = ~target_child_id,
+        operation = "="
+      )
+    )
+  ) %>%
+  layout(
+    title = "Discourse Space by Child (20 months)",
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        buttons = list(
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 2530),
+               label = "Child 2530"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 2521),
+               label = "Child 2521"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 2623),
+               label = "Child 2623"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 3167),
+               label = "Child 3167"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 4717),
+               label = "Child 4717"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 4737),
+               label = "Child 4737"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 4759),
+               label = "Child 4759"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5005),
+               label = "Child 5005")
+          )
+        )
+      )
+    )
+fig
+```
+
+```{r 30-month}
+fig <- convodata %>%
+  filter(target_child_age >= 30 & target_child_age < 31) %>%
+  plot_ly(
+    type = 'scatter',
+    x = ~V1,
+    y = ~V2,
+    color = ~speaker_code,
+    mode = 'markers',
+    text = ~gloss,
+    hoverinfo = "text",
+    transforms = list(
+      list(
+        type = 'filter',
+        target = ~target_child_id,
+        operation = "="
+      )
+    )
+  ) %>%
+  layout(
+    title = "Discourse Space by Child (30 months)",
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        buttons = list(
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 2971),
+               label = "Child 2971"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 3019),
+               label = "Child 3019"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 3907),
+               label = "Child 3907"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 4563),
+               label = "Child 4563"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 4872),
+               label = "Child 4872"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5005),
+               label = "Child 5005"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5065),
+               label = "Child 5065"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5085),
+               label = "Child 5085"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5103),
+               label = "Child 5103"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5119),
+               label = "Child 5119"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5132),
+               label = "Child 5132"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5146),
+               label = "Child 5146"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5063),
+               label = "Child 5063"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5166),
+               label = "Child 5166"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5134),
+               label = "Child 5134"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5186),
+               label = "Child 5186"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5192),
+               label = "Child 5192"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5204),
+               label = "Child 5204"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 5222),
+               label = "Child 5222")
+          )
+        )
+      )
+    )
+fig
+```
+
+```{r child5005}
+convodata %>%
+  distinct(target_child_age, target_child_id) %>%
+  filter(target_child_id == 5005)
+
+round_df <- function(x, digits) {
+    # round all numeric variables
+    # x: data frame 
+    # digits: number of digits to round
+    numeric_columns <- sapply(x, mode) == 'numeric'
+    x[numeric_columns] <-  round(x[numeric_columns], digits)
+    x
+}
+
+fig <- convodata %>%
+  filter(target_child_id == 5005) %>%
+  round_df(5) %>%
+  plot_ly(
+    type = 'scatter',
+    x = ~V1,
+    y = ~V2,
+    color = ~speaker_code,
+    mode = 'markers',
+    text = ~gloss,
+    hoverinfo = "text",
+    transforms = list(
+      list(
+        type = 'filter',
+        target = ~target_child_age,
+        operation = "="
+      )
+    )
+  ) %>%
+  layout(
+    title = "Discourse Space of Child 5005 by Age (Months)",
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        buttons = list(
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 17.62459),
+               label = "17 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 18.23035),
+               label = "18 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 18.95316),
+               label = "19 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 20.62465),
+               label = "20 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 22.46042),
+               label = "22 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 23.59186),
+               label = "23 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 24.78901),
+               label = "24 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 25.92045),
+               label = "25 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 26.75620),
+               label = "26 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 27.19768),
+               label = "27 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 28.52625),
+               label = "28 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 30.19775),
+               label = "30 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 32.36206),
+               label = "32 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 36.59213),
+               label = "36 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 39.78932),
+               label = "39 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 42.59225),
+               label = "42 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 43.06659),
+               label = "43 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 50.46100),
+               label = "50 months"),
+          
+          list(method = "restyle",
+               args = list("transforms[0].value", 51.36245),
+               label = "51 months")
+          )
+        )
+      )
+    )
+fig
+
+
+convodata %>%
+  filter(target_child_id == 5005) %>%
+  View()
+```
