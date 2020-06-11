@@ -1,0 +1,100 @@
+---
+title: "clustering over distributions of clusters"
+author: "Claire Bergey"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(knitr)
+library(here)
+library(dplyr)
+library(broom)
+library(tidyverse)
+library(RColorBrewer)
+library(plotly)
+library(tidyboot)
+library(purrr)
+library(tibble)
+library(feather)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+
+theme_set(theme_classic(base_size = 14))
+```
+
+```{r load-data}
+convodata <- read_feather(here("data/childes_convo_reduced_dims.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id),
+         utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(target_child_age <= 60) %>%
+  filter(!str_detect(gloss, "yyy"),!str_detect(gloss, "xxx"),
+         !is.na(target_child_age)) %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code))
+```
+
+```{r clustering}
+set.seed(111)
+all_clusters <- convodata %>%
+  select(V1,V2) %>%
+  kmeans(15)
+
+all_convo_length <- length(all_clusters$cluster)
+
+convodata$cluster <- all_clusters$cluster
+```
+
+```{r wide-recluster}
+convodata_normed <- convodata %>%
+  count(transcript_id, cluster, name = "num_cluster") %>%
+  group_by(transcript_id) %>%
+  mutate(num_utts = sum(num_cluster), norm_cluster = num_cluster/num_utts) %>%
+  ungroup() 
+
+convodata_normed_clusters <- convodata_normed %>%
+  select(-num_cluster, -num_utts) %>%
+  pivot_wider(names_from = cluster, values_from = norm_cluster, 
+              names_prefix = "cluster_", values_fill = list(norm_cluster = 0))
+
+to_metacluster <- convodata_normed_clusters %>%
+  select(-transcript_id)
+
+set.seed(111)
+k.max <- 50
+wss <- sapply(1:k.max, 
+              function(k){kmeans(to_metacluster, k, nstart=50,iter.max = 15 )$tot.withinss})
+
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+
+
+clusters_over_clusters <- to_metacluster %>%
+  kmeans(15)
+
+convodata_normed_clusters$metaclusters <- clusters_over_clusters$cluster
+
+convodata_metaclusters <- convodata %>%
+  left_join(convodata_normed_clusters %>% select(transcript_id, metaclusters), 
+            by = "transcript_id") %>%
+  left_join(convodata_normed %>% select(transcript_id, cluster, norm_cluster), 
+            by = c("transcript_id","cluster"))
+  
+```
+
+```{r plots}
+convodata_metaclusters %>%
+  group_by(transcript_id) %>% 
+  summarise(metaclusters = first(metaclusters), 
+            age = first(target_child_age),
+            id = first(target_child_id)) %>%
+  ggplot(aes(x = metaclusters)) +
+  geom_histogram()
+
+
+```

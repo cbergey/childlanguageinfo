@@ -1,7 +1,6 @@
 ---
-title: "Clumpiness"
+title: "Sentence types"
 output: html_document
-author: "Claire Bergey"
 ---
 
 ```{r setup, include=FALSE}
@@ -25,6 +24,7 @@ opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
 theme_set(theme_classic(base_size = 14))
 ```
 
+
 ```{r load-data}
 convodata <- read_feather(here("data/childes_convo_reduced_dims.feather")) %>%
   mutate(transcript_id = as.numeric(transcript_id), utterance_order = as.numeric(utterance_order),
@@ -35,6 +35,7 @@ convodata <- read_feather(here("data/childes_convo_reduced_dims.feather")) %>%
   mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
          speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code))
 ```
+
 
 ```{r lagdata}
 lagdata <- convodata %>%
@@ -52,66 +53,58 @@ consecutive_pairwise <- lagdata %>%
          variance = ifelse(is.na(variance), 0, variance)) %>%
   ungroup()
 
-consecutive_pairwise %>%
+```
+
+```{r wh_questions}
+
+questions <- consecutive_pairwise %>%
+  mutate(wh_question = grepl("who", gloss) | grepl("what", gloss) | grepl("when", gloss) | grepl("where", gloss) | grepl("why", gloss))
+
+questions %>%
   ggplot(aes(x = target_child_age, y = dist, color = speaker_code)) +
+  facet_wrap(~wh_question) +
   geom_point(alpha = 0.1, size = 0.2) +
   geom_smooth()
+
 ```
 
-Above: Conversational exchange pairwise distances over child age.
 
-```{r dist_exchange}
-consecutive_pairwise %>%
+```{r}
+
+questions %>%
   ggplot(aes(x = target_child_age, y = dist, color = speaker_code)) +
-  facet_wrap(~last_speaker) +
+  facet_grid(wh_question~last_speaker) +
   geom_point(alpha = 0.1, size = 0.2) +
   geom_smooth()
+
+
 ```
 
-Above: Conversational exchange pairwise distances over child age, faceted by whether I'm replying to myself ("ME") or to someone else ("YOU").
+```{r}
+modals <- consecutive_pairwise %>%
+  mutate(wh_question = grepl("can", gloss) | grepl("should", gloss) | grepl("must", gloss) | grepl("could", gloss) | grepl("may", gloss))
 
-```{r variance}
-consecutive_pairwise %>%
-  ggplot(aes(x = target_child_age, y = variance, color = speaker_code)) +
-  geom_point(alpha = 0.3, size = 0.4) +
-  geom_smooth()
-```
 
-Above: Conversational exchange pairwise distance variance over child age.
-
-```{r variance_exchange}
-consecutive_pairwise %>%
-  ggplot(aes(x = target_child_age, y = variance, color = speaker_code)) +
-  facet_wrap(~last_speaker) +
-  geom_point(alpha = 0.3, size = 0.4) +
-  geom_smooth() 
-```
-
-Above: Conversational exchange pairwise distance variance over child age, faceted by whether I'm replying to myself ("ME") or to someone else ("YOU").
-
-```{r pairwise}
-
-pairwise_V1 <- convodata %>%
-  group_by(transcript_id) %>%
-  pairwise_dist(utterance_order, speaker_code, V1) %>%
-  ungroup()
-  
-pairwise_V2 <- convodata %>%
-  group_by(transcript_id) %>%
-  pairwise_dist(utterance_order, speaker_code, V2) %>%
-  ungroup()
-
-id_info <- convodata %>% 
-  select(transcript_id, utterance_order, speaker_code, target_child_age, target_child_id)
-  
-pairwise_dists <- pairwise_V1 %>%
-  left_join(pairwise_V2, by = c("transcript_id", "item1","item2")) %>%
-  left_join(id_info, by = c("transcript_id", "item1" = "utterance_order"))
-
-pairwise_dists %>%
-  ggplot(aes(x = target_child_age, y = distance, color = speaker_code)) +
+modals %>%
+  ggplot(aes(x = target_child_age, y = dist, color = speaker_code)) +
+  facet_wrap(~wh_question) +
   geom_point(alpha = 0.1, size = 0.2) +
   geom_smooth()
 
 ```
 
+
+```{r}
+
+modals %>%
+  ggplot(aes(x = target_child_age, y = dist, color = speaker_code)) +
+  facet_grid(wh_question~last_speaker) +
+  geom_point(alpha = 0.1, size = 0.2) +
+  geom_smooth()
+
+
+modals %>%
+  filter(wh_question ==TRUE) %>%
+  View()
+
+```
