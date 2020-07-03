@@ -1,0 +1,79 @@
+---
+title: "frames-analysis"
+output: html_document
+author: "Claire Bergey"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(knitr)
+library(here)
+library(dplyr)
+library(entropy)
+library(tidyboot)
+library(tidyverse)
+library(childesr)
+library(RColorBrewer)
+library(feather)
+library(DT)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+
+theme_set(theme_classic(base_size = 14))
+```
+
+```{r read-data}
+convos <- read_feather(here("data/childes_parsed_frames.feather"))
+```
+
+```{r top-frames}
+frames <- convos %>%
+  count(utt_parse) %>%
+  arrange(desc(n)) 
+
+top_frames <- frames %>%
+  filter(n > 1) 
+
+datatable(top_frames)
+```
+
+```{r zipf}
+plot(log10(seq_along(frames$n)), log10(unclass(frames$n)))
+```
+
+Above: log frequency by log rank order of frames.
+
+```{r lengths}
+top_frames <- top_frames %>%
+  mutate(length = lengths(strsplit(utt_parse, " ")))
+
+top_frames %>%
+  ggplot(aes(x = log(n), y = length)) +
+  geom_point()
+```
+
+Above: length (# words) of frames by log frequency.
+
+```{r}
+frames <- frames %>%
+  rowid_to_column()
+
+convos <- convos %>%
+  left_join(frames %>% select(rowid, utt_parse, n), by = "utt_parse") %>%
+  rename(frame_rank = rowid) %>%
+  mutate(round_age = round(target_child_age/12))
+
+convos %>%
+  filter(speaker_code == "CHI") %>%
+  ggplot(aes(x = frame_rank)) +
+  geom_histogram(aes(y=(..count..)/tapply(..count..,..PANEL..,sum)[..PANEL..])) +
+  facet_wrap(~round_age)
+
+convos %>%
+  filter(speaker_code == "MOT") %>%
+  ggplot(aes(x = frame_rank)) +
+  geom_histogram(aes(y=(..count..)/tapply(..count..,..PANEL..,sum)[..PANEL..])) +
+  facet_wrap(~round_age)
+```
