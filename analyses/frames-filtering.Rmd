@@ -54,16 +54,19 @@ get_parse <- function(txt) {
   parses <- txt %>%
     udpipe(., udmodel, parallel.cores = 4) %>%
     as_tibble() %>%
-    mutate(parse = if_else(token %in%top_types$gloss, token, upos)) 
+    mutate(parse = if_else(token %in% top_types$gloss, token, upos),
+           parse = if_else((token == "'s" & upos == "PART"), upos, parse))
 
   return(paste(parses$parse, collapse = " "))
 }
+
+vget_parse <- Vectorize(get_parse)
 
 get_word_parse <- function(txt) {
   parses <- txt %>%
     udpipe(., udmodel, parallel.cores = 4) %>%
     as_tibble()
-
+  
   return(paste(parses$token, collapse = " "))
 }
 
@@ -83,11 +86,11 @@ top_types <- top_types %>%
 ```{r parsing}
 parsed_utts <- cleanutts %>%
   rowwise() %>%
-  mutate(utt_parse = get_parse(gloss))
+  mutate(utt_parse = vget_parse(gloss))
 ```
 
 ```{r write-feather}
-#write_feather(parsed_utt, here("data/childes_parsed.feather"))
+#write_feather(parsed_utts, here("data/childes_parsed_frames.feather"))
 ```
 
 ```{r}
@@ -101,12 +104,6 @@ frames %>%
 
 plot(log10(seq_along(frames$n)), log10(unclass(frames$n)))
 
-get_word_parse("it's")
-get_parse("Sarah's")
-
-yz <- "it's"  %>%
-    udpipe(., udmodel, parallel.cores = 4) %>%
-    as_tibble()
 ```
 
 ```{r}
@@ -119,8 +116,5 @@ by_age <- parsed_utts %>%
 by_age %>%
   ggplot(aes(x = age, y = n, fill = utt_parse)) +
   geom_bar(position = "stack", stat = "identity")
-  
-  
-
 
 ```
