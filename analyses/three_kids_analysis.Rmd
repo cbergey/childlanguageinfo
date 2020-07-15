@@ -1,0 +1,108 @@
+---
+title: "three kids sequence"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=12, fig.height=8)
+
+library(knitr)
+library(here)
+library(dplyr)
+library(broom)
+library(tidyverse)
+library(childesr)
+library(RColorBrewer)
+library(plotly)
+library(tidyboot)
+library(feather)
+library(widyr)
+library(purrr)
+library(tibble)
+library(tidyr)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+
+theme_set(theme_classic(base_size = 14))
+```
+
+```{r load-data}
+convodata <- read_feather(here("data/childes_convo_reduced_dims.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id), utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(target_child_age <= 60) %>%
+  filter(!str_detect(gloss, "yyy"),!str_detect(gloss, "xxx"),
+         !is.na(target_child_age)) %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code))
+```
+
+```{clustering}
+
+set.seed(111)
+
+alphabet = c("A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z")
+
+number_to_letter <- function(number) {
+  return(alphabet[number])
+}
+
+threekids <- convodata %>%
+  filter(target_child_id == "4909" | target_child_id == "3643" | target_child_id == "4353") %>%
+  group_by(transcript_id) %>%
+  do(rbind(.,c(.$transcript_id,rep(NA,NCOL(df)-1)))) %>%
+  ungroup() %>%
+  mutate(V1 = if_else(V1 > 100, lag(V1), V1)) %>%
+  mutate(V2 = if_else(V2 > 100, lag(V2), V2))
+
+threekidscluster <- threekids %>%
+  select(V1, V2) %>%
+  kmeans(., 15)
+
+towritethreekids <- paste(unlist(number_to_letter(threekidscluster$cluster)), collapse='')
+
+#write_file(towritethreekids, here("data/three_kids_sequence"))
+
+threekidssequence <- read.csv(here("data/three_kids_reconstruction_14"))
+
+threekids$hidden_states <- threekidssequence$hidden_state
+threekids$cluster <- threekidscluster$cluster
+
+```
+
+```{viz}
+
+threekids %>% filter(transcript_id != 6445) %>%
+  ggplot(aes(x = hidden_states)) +
+  geom_histogram(binwidth = 1) +
+  facet_wrap(~transcript_id)
+
+
+threekids %>% filter(transcript_id != 6445) %>%
+  ggplot(aes(x = hidden_states, y = cluster)) +
+  geom_point() +
+  facet_wrap(~transcript_id)
+
+
+convo_5565 <- convodata %>%
+  filter(transcript_id == 5565) 
+
+cluster_5565 <- convo_5565 %>%
+  select(V1, V2) %>%
+  kmeans(., 15)
+
+towrite5565 <- paste(unlist(number_to_letter(cluster_5565$cluster)), collapse='')
+
+write_file(towrite5565, here("data/convo_5565"))
+
+
+cluster_3 <- threekids %>%
+  filter(cluster == 4) %>%
+  distinct(gloss) %>%
+  arrange(gloss) %>%
+  select(gloss)
+
+write_csv(cluster_3, here("data/cluster_3"))
+
+```

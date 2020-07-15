@@ -1,0 +1,105 @@
+---
+title: "Why?"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=12, fig.height=8)
+
+library(knitr)
+library(here)
+library(dplyr)
+library(entropy)
+library(tidyverse)
+library(childesr)
+library(RColorBrewer)
+library(plotly)
+library(tidyboot)
+library(feather)
+library(widyr)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+
+theme_set(theme_classic(base_size = 14))
+```
+
+
+```{r load-data}
+convodata <- read_feather(here("data/childes_convo_reduced_dims.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id), utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(target_child_age <= 60) %>%
+  filter(!str_detect(gloss, "yyy"),!str_detect(gloss, "xxx"),
+         !is.na(target_child_age)) %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code))
+```
+
+
+```{r lagdata}
+
+distance <- function(V10, V20, V1, V2){
+  dist = sqrt((V1 - V10)^2 + (V2 - V20)^2)
+  dist = ifelse(is.na(dist), 0, dist)
+  return(dist)
+}
+
+lagdata <- convodata %>%
+  arrange(transcript_id, utterance_order) %>%
+  group_by(transcript_id) %>%
+  mutate(dist = distance(V1, V2, lag(V1), lag(V2)),
+         last_speaker = ifelse(lag(speaker_code) == speaker_code, "ME", "YOU"),
+         last_speaker = ifelse(is.na(last_speaker), "ME", last_speaker)) %>%
+  ungroup()
+
+consecutive_pairwise <- lagdata %>%
+  group_by(transcript_id, speaker_code) %>%
+  mutate(variance = var(dist),
+         variance = ifelse(is.na(variance), 0, variance)) %>%
+  ungroup()
+
+```
+
+```{r wh_questions}
+
+questions <- consecutive_pairwise %>%
+  mutate(wh_question = case_when(grepl("who", gloss) ~ "who",
+                                 grepl("what", gloss) ~ "what",
+                                 grepl("when", gloss) ~ "when",
+                                 grepl("where", gloss) ~ "where",
+                                 grepl("why", gloss) ~ "why",
+                                 grepl("how", gloss) ~ "how",
+                                 TRUE ~ "none"))
+
+alternating <- questions %>%
+  filter(speaker_code != lag(speaker_code)) %>%
+  arrange(transcript_id, utterance_order) %>%
+  filter(utterance_order == (lag(utterance_order) + 1) 
+           | utterance_order == (lead(utterance_order) - 1)) %>%
+  arrange(transcript_id, utterance_order) %>%
+  mutate(exchange_x = utterance_order) %>%
+  mutate(exchange_x = if_else(utterance_order == (lag(utterance_order) + 1), 
+                lag(exchange_x), exchange_x)) %>%
+  group_by(exchange) %>%
+  mutate(lag_dist = distance(V1, V2, lag(V1, k = 2), lag(V2, k = 2))) %>%
+  ungroup()
+  
+
+alternating %>%
+  ggplot(aes(x = dist, y = lag_dist, color = exchange)) +
+  geom_point(alpha = 0.5, size = 0.2) 
+
+```
+
+
+```{r}
+
+questions %>%
+  ggplot(aes(x = target_child_age, y = dist, color = speaker_code)) +
+  facet_grid(wh_question~last_speaker) +
+  geom_point(alpha = 0.1, size = 0.2) +
+  geom_smooth()
+
+
+```

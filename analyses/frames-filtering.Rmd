@@ -1,0 +1,120 @@
+---
+title: "frames-filtering"
+output: html_document
+author: "Claire Bergey"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(knitr)
+library(here)
+library(dplyr)
+library(entropy)
+library(tidyboot)
+library(tidyverse)
+library(childesr)
+library(RColorBrewer)
+library(udpipe)
+library(feather)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+
+theme_set(theme_classic(base_size = 14))
+```
+
+```{r read-childes}
+utterances <- get_utterances(collection = "Eng-NA")
+types <- get_types(collection = "Eng-NA") 
+
+cleanutts <- utterances %>%
+  filter(speaker_role %in% c("Target_Child", "Mother","Father")) %>%
+  mutate(gloss = str_to_lower(gloss),
+         gloss = str_remove_all(gloss, "xxx"),
+         gloss = str_remove_all(gloss, "yyy"),
+         gloss = str_remove_all(gloss, "www")) %>%
+  filter(!is.na(target_child_age), str_squish(gloss) != "", target_child_age <= 60) %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code)) %>%
+  arrange(transcript_id,utterance_order)
+
+top_types <- types %>%
+  mutate(gloss = str_to_lower(gloss)) %>%
+  filter(gloss != "xxx", gloss != "yyy", gloss != "www") %>%
+  group_by(gloss) %>%
+  summarise(sum = sum(count)) %>%
+  slice_max(sum, n = 100)
+```
+
+```{r udpipe}
+udmodel <- udpipe_load_model(file = "english-ewt-ud-2.4-190531.udpipe")
+
+get_parse <- function(txt) {
+  parses <- txt %>%
+    udpipe(., udmodel, parallel.cores = 4) %>%
+    as_tibble() %>%
+    mutate(parse = if_else(token %in% top_types$gloss, token, upos),
+           parse = if_else((token == "'s" & upos == "PART"), upos, parse))
+
+  return(paste(parses$parse, collapse = " "))
+}
+
+vget_parse <- Vectorize(get_parse)
+
+get_word_parse <- function(txt) {
+  parses <- txt %>%
+    udpipe(., udmodel, parallel.cores = 4) %>%
+    as_tibble()
+  
+  return(paste(parses$token, collapse = " "))
+}
+
+contractions <- top_types %>%
+  rowwise() %>%
+  mutate(parsed = get_word_parse(gloss)) %>%
+  filter(gloss != parsed)
+
+left_out = c("do", "n't", "that", "'s", "it", "i", "'m", "what", "you", "'re", "let", "he")
+
+top_types <- top_types %>%
+  add_row(gloss = left_out) %>%
+  distinct(gloss)
+
+```
+
+```{r parsing}
+parsed_utts <- cleanutts %>%
+  rowwise() %>%
+  mutate(utt_parse = vget_parse(gloss))
+```
+
+```{r write-feather}
+#write_feather(parsed_utts, here("data/childes_parsed_frames.feather"))
+```
+
+```{r}
+frames <- parsed_utts %>%
+  count(utt_parse) %>%
+  arrange(desc(n))
+
+frames %>%
+  ggplot(aes(x = utt_parse, y = n)) +
+  geom_point()
+
+plot(log10(seq_along(frames$n)), log10(unclass(frames$n)))
+
+```
+
+```{r}
+by_age <- parsed_utts %>%
+  filter(speaker_code == "CHI") %>%
+  mutate(age = floor(target_child_age)) %>%
+  group_by(age, utt_parse) %>%
+  summarise(n = n())
+
+by_age %>%
+  ggplot(aes(x = age, y = n, fill = utt_parse)) +
+  geom_bar(position = "stack", stat = "identity")
+
+```

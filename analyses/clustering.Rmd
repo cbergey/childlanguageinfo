@@ -1,0 +1,206 @@
+---
+title: "K-means clustering"
+output: html_document
+author: "Claire Bergey"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=12, fig.height=8)
+
+library(knitr)
+library(here)
+library(dplyr)
+library(broom)
+library(tidyverse)
+library(childesr)
+library(RColorBrewer)
+library(plotly)
+library(tidyboot)
+library(feather)
+library(widyr)
+library(purrr)
+library(tibble)
+library(tidyr)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+
+theme_set(theme_classic(base_size = 14))
+```
+
+```{r load-data}
+convodata <- read_feather(here("data/childes_convo_reduced_dims.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id), utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(target_child_age <= 60) %>%
+  filter(!str_detect(gloss, "yyy"),!str_detect(gloss, "xxx"),
+         !is.na(target_child_age)) %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code))
+```
+
+
+```{r clustering}
+
+to_cluster <- convodata %>%
+  select(V1,V2)
+
+cluster10 <- kmeans(to_cluster, 10)
+cluster50 <- kmeans(to_cluster, 50)
+cluster100 <- kmeans(to_cluster, 100)
+
+convodata$cluster10 <- cluster10$cluster
+convodata$cluster50 <- cluster50$cluster
+convodata$cluster100 <- cluster100$cluster
+
+```
+
+```{r}
+
+k.max <- 25
+wss <- sapply(1:k.max, 
+              function(k){kmeans(to_cluster, k, nstart=50,iter.max = 15 )$tot.withinss})
+
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+
+
+
+```
+
+
+
+
+```{r}
+one_convo <- convodata %>%
+  filter(transcript_id == 4385) %>%
+  select(V1,V2)
+
+wss <- sapply(1:k.max, 
+              function(k){kmeans(one_convo, k, nstart=50,iter.max = 15 )$tot.withinss})
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+
+set.seed(111)
+one_convo_clusters <- kmeans(one_convo, 15)
+
+alphabet = c("A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z")
+
+number_to_letter <- function(number) {
+  return(alphabet[number])
+}
+
+one_convo_length <- length(one_convo_clusters$cluster)
+
+one_convo_sequence <- paste(unlist(number_to_letter(one_convo_clusters$cluster)), collapse='')
+
+write_file(one_convo_sequence, here("data/convo4395_sequence"))
+
+convo_4395_sequence <- c(1,1,1,1,2,2,2,2,0,0,0,0,0,1,2,2,2,2,2,2,2,2,2,0,0,0,0,0,1,2,2,2,0,0,0,0,0,2,2,2,2,2,2,0,0,1,1,1,1,1,1,1,1,2,2,2,2,2,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,1,1,1,1,1,1,1,1,2,2,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,2,2,0,0,0,1,1,1,1,1,1,1,1,1,1,1,2,2,0,0,0,3,3,3,3,3,3,3,3,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,2,0,0,0,0,0,0,3,3,3,3,3,3,3,3,3,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,2,2,2,2,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,0,0,0,0,1,1,1,1,1,1,1,2,2,0,1)
+
+one_convo$hiddenstates <- convo_4395_sequence
+
+convo_4395 <- convodata %>%
+  filter(transcript_id == 4395)
+
+convo_4395$hidden_state <- one_convo$hiddenstates
+convo_4395$cluster <- one_convo_clusters$cluster
+
+towrite <- convo_4395 %>%
+  select(gloss, speaker_code, hidden_state, cluster)
+
+
+
+#write_csv(towrite, here("convo_4395_hidden.csv"))
+
+groups <- convodata %>% group_by(target_child_id) %>%
+  summarise(max(utterance_order))
+
+threekids <- convodata %>%
+  filter(target_child_id == "4909" | target_child_id == "3643" | target_child_id == "4353") 
+
+threekidscluster <- threekids %>%
+  select(V1, V2) %>%
+  kmeans(., 15)
+
+towritethreekids <- paste(unlist(number_to_letter(threekidscluster$cluster)), collapse='')
+
+#write_file(towritethreekids, here("data/three_kids_sequence"))
+
+threekidssequence <- read.csv(here("data/three_kids_reconstruction_14"))
+
+threekids$hidden_states <- threekidssequence$hidden_state
+
+
+
+```
+
+```{r}
+allclusters <- kmeans(to_cluster, 15)
+
+all_convo_length <- length(allclusters$cluster)
+
+all_convo_sequence <- paste(unlist(number_to_letter(allclusters$cluster)), collapse='')
+
+write_file(all_convo_sequence, here("data/all_convo_sequence"))
+
+
+```
+
+```{r cluster10}
+
+fig <- convodata %>%
+  plot_ly(
+    type = 'scatter',
+    x = ~V1,
+    y = ~V2,
+    color = ~cluster10,
+    mode = 'markers',
+    text = ~gloss,
+    hoverinfo = "text"
+    )
+fig
+
+```
+
+Above: Plot with 10 clusters.
+
+```{r cluster50}
+
+fig <- convodata %>%
+  plot_ly(
+    type = 'scatter',
+    x = ~V1,
+    y = ~V2,
+    color = ~cluster50,
+    mode = 'markers',
+    text = ~gloss,
+    hoverinfo = "text"
+    )
+fig
+
+```
+
+Above: Plot with 50 clusters.
+
+```{r cluster100}
+
+fig <- convodata %>%
+  plot_ly(
+    type = 'scatter',
+    x = ~V1,
+    y = ~V2,
+    color = ~cluster50,
+    mode = 'markers',
+    text = ~gloss,
+    hoverinfo = "text"
+    )
+fig
+
+```
+
+Above: Plot with 100 clusters.
