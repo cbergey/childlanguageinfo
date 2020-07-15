@@ -1,0 +1,106 @@
+---
+dtitle: "entropy_analysis"
+author: "Zoe Marshall"
+date: "7/14/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(dplyr)
+library(here)
+library(feather)
+library(tidyverse)
+library(plotly)
+library(reticulate)
+library(entropy)
+library(tidyboot)
+```
+
+```{r readfeather}
+framed_childes <- 
+  read_feather(here("childes_parsed_frames.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id),
+         utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(target_child_age <= 60) %>%
+  filter(!str_detect(gloss, "yyy"),!str_detect(gloss, "xxx"),
+         !is.na(target_child_age)) %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code))
+```
+
+```{r filter}
+valid_transcripts <- framed_childes %>%
+  group_by(transcript_id) %>%
+  count() %>%
+  filter(n > 50)
+```
+
+```{r clean1}
+children_with_ages <- framed_childes %>%
+  mutate(basic_age = floor(target_child_age)) %>%
+  filter(transcript_id %in% valid_transcripts$transcript_id)
+
+count_vector <- children_with_ages %>%
+  group_by(utt_parse, target_child_age, speaker_code) %>%
+  filter(speaker_code != "LEA", speaker_code != "MAR", speaker_code != "STV",
+         speaker_code != "CHI1", speaker_code != "CHI2") %>%
+  count
+```
+
+```{r entropy1}
+entropy(count_vector$n)
+
+entrop_vector <- count_vector %>%
+  mutate(prop = (n / 1640778))
+
+entrop_vector <- entrop_vector %>%
+  group_by(target_child_age, speaker_code) %>%
+  mutate(entrop = entropy(prop))
+```
+
+```{r graph1}
+entrop_vector %>%
+  ggplot(aes(target_child_age, entrop, color = speaker_code)) +
+  geom_point(alpha = 0.01) +
+  geom_smooth() +
+  ylab("Entropy") +
+  xlab("Exact Age") +
+  ggtitle("Entropy of Frames") +
+  theme_classic()
+```
+
+```{r}
+children_with_ages <- framed_childes %>%
+  mutate(basic_age = floor(target_child_age)) %>%
+  filter(transcript_id %in% valid_transcripts$transcript_id)
+
+count_vector <- children_with_ages %>%
+  group_by(utt_parse, basic_age, speaker_code) %>%
+  filter(speaker_code != "LEA", speaker_code != "MAR", speaker_code != "STV",
+         speaker_code != "CHI1", speaker_code != "CHI2") %>%
+  count
+```
+
+```{r}
+entropy(count_vector$n)
+
+entrop_vector <- count_vector %>%
+  mutate(prop = (n / 1640778))
+
+entrop_vector <- entrop_vector %>%
+  group_by(basic_age, speaker_code) %>%
+  mutate(entrop = entropy(prop))
+```
+
+```{r}
+entrop_vector %>%
+  ggplot(aes(basic_age, entrop, color = speaker_code)) +
+  geom_jitter() +
+  ylab("Entropy") +
+  xlab("Approximate Age") +
+  ggtitle("Entropy of Frames") +
+  theme_classic()
+```
