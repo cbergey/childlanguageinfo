@@ -46,7 +46,7 @@ children_with_ages <- framed_childes %>%
 count_vector <- children_with_ages %>%
   group_by(utt_parse, target_child_age, speaker_code) %>%
   filter(speaker_code != "LEA", speaker_code != "MAR", speaker_code != "STV",
-         speaker_code != "CHI1", speaker_code != "CHI2") %>%
+         speaker_code != "CHI1", speaker_code != "CHI2", speaker_code != "FAT") %>%
   count
 ```
 
