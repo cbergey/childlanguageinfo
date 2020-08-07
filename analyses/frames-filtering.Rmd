@@ -91,6 +91,10 @@ parsed_utts <- cleanutts %>%
 
 ```{r write-feather}
 #write_feather(parsed_utts, here("data/childes_parsed_frames.feather"))
+docs <- parsed_utts %>%
+  arrange(transcript_id, utterance_order) %>%
+  select(transcript_id, parse) %>%
+  pivot_wider(names_
 ```
 
 ```{r}

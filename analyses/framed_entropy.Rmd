@@ -56,7 +56,7 @@ entropy_vector <- count_vector %>%
   summarise(entropy = first(entropy), age = first(basic_age))
 ```
 
-```{r graph}
+```{r frame-entropy-graph}
 entropy_vector %>%
   ggplot(aes(age, entropy, color = speaker_code)) +
   geom_point(alpha = 0.08) +
