@@ -20,7 +20,7 @@ library(tidyboot)
 
 ```{r readfeather}
 framed_childes <- 
-  read_feather(here("childes_parsed_frames.feather")) %>%
+  read_feather(here("childlanguageinfo/childes_parsed_frames.feather")) %>%
   mutate(transcript_id = as.numeric(transcript_id),
          utterance_order = as.numeric(utterance_order),
          target_child_age = as.numeric(target_child_age)) %>%
@@ -32,75 +32,139 @@ framed_childes <-
 ```
 
 ```{r filter}
-valid_transcripts <- framed_childes %>%
+par_child <- framed_childes %>%
+  mutate(speaker_code_2 = ifelse(speaker_code == "MOT" | speaker_code == "FAT", "PAR", speaker_code))
+
+valid_transcripts <- par_child %>%
+  filter(speaker_code_2 == "CHI" | speaker_code_2 == "PAR") %>%
   group_by(transcript_id) %>%
   count() %>%
-  filter(n > 50)
+  filter(n > 100)
+
+more_valid_transcripts <- par_child %>%
+  filter(speaker_code_2 == "CHI" | speaker_code_2 == "PAR") %>%
+  group_by(speaker_code_2, transcript_id) %>%
+  count() %>%
+  filter(n > 10)
+
+valid_utt <- framed_childes %>%
+  group_by(utt_parse) %>%
+  count() %>%
+  filter(n > 300)
 ```
 
-```{r clean1}
-children_with_ages <- framed_childes %>%
-  mutate(basic_age = floor(target_child_age)) %>%
-  filter(transcript_id %in% valid_transcripts$transcript_id)
+```{r clean}
+children_with_ages <- par_child %>% 
+  filter(speaker_code_2=="CHI"|speaker_code_2=="PAR") %>% 
+  mutate(basic_age=floor(target_child_age)) %>% 
+  filter(transcript_id %in% valid_transcripts$transcript_id) %>%
+  filter(transcript_id %in% more_valid_transcripts$transcript_id) %>%
+  filter(utt_parse %in% valid_utt$utt_parse)
 
-count_vector <- children_with_ages %>%
-  group_by(utt_parse, target_child_age, speaker_code) %>%
-  filter(speaker_code != "LEA", speaker_code != "MAR", speaker_code != "STV",
-         speaker_code != "CHI1", speaker_code != "CHI2", speaker_code != "FAT") %>%
-  count
+count_vector_frame <- children_with_ages %>% 
+  group_by(utt_parse, basic_age, transcript_id, speaker_code_2) %>%
+  count()
+
+count_vector_gloss <- children_with_ages %>%
+  group_by(gloss, basic_age, transcript_id, speaker_code_2) %>%
+  count()
 ```
 
-```{r entropy1}
-entropy(count_vector$n)
+```{r entropy}
+entropy_vector_frame <- count_vector_frame %>% 
+  group_by(transcript_id, speaker_code_2) %>% 
+  mutate(entropy = entropy(n, CMD = "nsb-entropy")) %>%
+  summarise(entropy = first(entropy), age = first(basic_age))
 
-entrop_vector <- count_vector %>%
-  mutate(prop = (n / 1640778))
-
-entrop_vector <- entrop_vector %>%
-  group_by(target_child_age, speaker_code) %>%
-  mutate(entrop = entropy(prop))
+entropy_vector_gloss <- count_vector_gloss %>% 
+  group_by(transcript_id, speaker_code_2) %>% 
+  mutate(entropy = entropy(n, CMD = here("nsb-entropy-1.14/nsb.entropy.R"))) %>%
+  summarise(entropy = first(entropy), age = first(basic_age))
 ```
 
 ```{r graph1}
-entrop_vector %>%
-  ggplot(aes(target_child_age, entrop, color = speaker_code)) +
-  geom_point(alpha = 0.01) +
+entropy_vector_frame %>%
+  ggplot(aes(age, entropy, color = speaker_code_2)) +
+  geom_point(alpha = 0.08) +
   geom_smooth() +
+  geom_point(data = entropy_vector_gloss, alpha = 0.08) +
+  geom_smooth(data = entropy_vector_gloss) +
   ylab("Entropy") +
   xlab("Exact Age") +
-  ggtitle("Entropy of Frames") +
+  ggtitle("Entropy of Frames and Gloss") +
   theme_classic()
 ```
 
-```{r}
-children_with_ages <- framed_childes %>%
-  mutate(basic_age = floor(target_child_age)) %>%
-  filter(transcript_id %in% valid_transcripts$transcript_id)
+```{r compare}
+x <- entropy_vector_frame %>%
+  filter(speaker_code_2 == "CHI") %>%
+  mutate(x = entropy) 
+x <- x[,c(1, 4, 5)]
 
-count_vector <- children_with_ages %>%
-  group_by(utt_parse, basic_age, speaker_code) %>%
-  filter(speaker_code != "LEA", speaker_code != "MAR", speaker_code != "STV",
-         speaker_code != "CHI1", speaker_code != "CHI2") %>%
-  count
+y <- entropy_vector_frame %>%
+  filter(speaker_code_2 == "PAR") %>%
+  mutate(y = entropy)
+y <- y[,c(1, 4, 5)]
+
+new_entrop <- merge(x, y)
 ```
 
-```{r}
-entropy(count_vector$n)
-
-entrop_vector <- count_vector %>%
-  mutate(prop = (n / 1640778))
-
-entrop_vector <- entrop_vector %>%
-  group_by(basic_age, speaker_code) %>%
-  mutate(entrop = entropy(prop))
+```{r graph2}
+new_entrop %>%
+  ggplot(aes(x, y, color = age)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm") +
+  xlab("Child Entropy") +
+  ylab("Mother Entropy") +
+  ggtitle("Entropy (Frames) Between Conversational Partners") +
+  theme_classic() +
+  scale_color_gradient(low="lightblue1", high="blue")
 ```
 
-```{r}
-entrop_vector %>%
-  ggplot(aes(basic_age, entrop, color = speaker_code)) +
-  geom_jitter() +
-  ylab("Entropy") +
-  xlab("Approximate Age") +
-  ggtitle("Entropy of Frames") +
-  theme_classic()
+```{r graph_facet_year}
+new_entrop <- new_entrop %>%
+  mutate(year = floor(age / 12))
+  
+new_entrop %>%
+  ggplot(aes(x, y)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~year) +
+  xlab("Child Entropy") +
+  ylab("Mother Entropy") +
+  ggtitle("Entropy Between Conversation Partners (yearly, by frame)")
 ```
+
+```{r graph_facet}
+new_entrop %>%
+  filter(age <= 16) %>%
+  ggplot(aes(x, y)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~age) +
+  xlab("Child Entropy") +
+  ylab("Mother Entropy") 
+```
+
+```{r graph_facet2}
+new_entrop %>%
+  filter(age > 16, age <= 28) %>%
+  ggplot(aes(x, y)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~age) +
+  xlab("Child Entropy") +
+  ylab("Mother Entropy") 
+```
+
+```{r graph_facet3}
+new_entrop %>%
+  filter(age > 28, age <= 40) %>%
+  ggplot(aes(x, y)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~age) +
+  xlab("Child Entropy") +
+  ylab("Mother Entropy") 
+```
+
