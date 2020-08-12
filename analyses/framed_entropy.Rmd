@@ -1,0 +1,68 @@
+---
+dtitle: "entropy_analysis"
+author: "Zoe Marshall"
+date: "7/14/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(dplyr)
+library(here)
+library(feather)
+library(tidyverse)
+library(plotly)
+library(entropy)
+library(tidyboot)
+```
+
+```{r readfeather}
+framed_childes <- 
+  read_feather(here("data/childes_parsed_frames.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id),
+         utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(target_child_age <= 60) %>%
+  filter(!str_detect(gloss, "yyy"),!str_detect(gloss, "xxx"),
+         !is.na(target_child_age)) %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code))
+```
+
+```{r filter}
+valid_transcripts <- framed_childes %>%
+  filter(speaker_code == "CHI" | speaker_code == "MOT") %>%
+  group_by(transcript_id) %>%
+  count() %>%
+  filter(n > 100) 
+```
+
+```{r clean-count}
+children_with_ages <- framed_childes %>%
+  filter(speaker_code == "CHI" | speaker_code == "MOT") %>%
+  mutate(basic_age = floor(target_child_age)) %>% 
+  filter(transcript_id %in% valid_transcripts$transcript_id)
+
+count_vector <- children_with_ages %>%
+  group_by(utt_parse, basic_age, transcript_id, speaker_code)  %>%
+  count()
+```
+
+```{r entropy}
+entropy_vector <- count_vector %>%
+  group_by(transcript_id, speaker_code) %>%
+  mutate(entropy = entropy(n)) %>%
+  summarise(entropy = first(entropy), age = first(basic_age))
+```
+
+```{r frame-entropy-graph}
+entropy_vector %>%
+  ggplot(aes(age, entropy, color = speaker_code)) +
+  geom_point(alpha = 0.08) +
+  geom_smooth() +
+  ylab("Entropy") +
+  xlab("Age") +
+  ggtitle("Entropy of Frames") +
+  theme_classic()
+```
