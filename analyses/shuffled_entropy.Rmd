@@ -1,0 +1,158 @@
+---
+title: "shuffled_entropy"
+author: "Zoe Marshall"
+date: "7/23/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(dplyr)
+library(here)
+library(feather)
+library(tidyverse)
+library(plotly)
+library(reticulate)
+library(entropy)
+library(tidyboot)
+library(randomizeR)
+library(purrr)
+library(gsl)
+```
+
+
+```{r readfeather}
+framed_childes <- 
+  read_feather(here("childlanguageinfo/childes_parsed_frames.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id),
+         utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(target_child_age <= 60) %>%
+  filter(!str_detect(gloss, "yyy"),!str_detect(gloss, "xxx"),
+         !is.na(target_child_age)) %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code))
+```
+
+```{r filter}
+par_child <- framed_childes %>%
+  mutate(speaker_code_2 = ifelse(speaker_code == "MOT" | speaker_code == "FAT", "PAR", speaker_code))
+
+valid_transcripts <- par_child %>%
+  filter(speaker_code_2 == "CHI" | speaker_code_2 == "PAR") %>%
+  group_by(transcript_id) %>%
+  count() %>%
+  filter(n > 100)
+
+more_valid_transcripts <- par_child %>%
+  filter(speaker_code_2 == "CHI" | speaker_code_2 == "PAR") %>%
+  group_by(speaker_code_2, transcript_id) %>%
+  count() %>%
+  filter(n > 10)
+
+valid_utt <- framed_childes %>%
+  group_by(utt_parse) %>%
+  count() %>%
+  filter(n > 300)
+```
+
+```{r clean}
+children_with_ages <- par_child %>% 
+  filter(speaker_code_2=="CHI"|speaker_code_2=="PAR") %>% 
+  mutate(basic_age=floor(target_child_age)) %>% 
+  filter(transcript_id %in% valid_transcripts$transcript_id) %>%
+  filter(transcript_id %in% more_valid_transcripts$transcript_id) %>%
+  filter(utt_parse %in% valid_utt$utt_parse)
+
+count_vector_frame <- children_with_ages %>% 
+  group_by(utt_parse, basic_age, transcript_id, speaker_code_2) %>%
+  count()
+
+count_vector_gloss <- children_with_ages %>%
+  group_by(gloss, basic_age, transcript_id, speaker_code_2) %>%
+  count()
+```
+
+```{r entropy}
+y = c(4, 2, 3, 0, 2, 4, 0, 0, 2, 1, 1) 
+entropy.NSB(y, CMD = here("childlanguageinfo/nsb-entropy-1.14/build/nsb-entropy"))
+```
+
+```{r}
+z <- count_vector_frame %>%
+  filter(transcript_id == 6550 | transcript_id == 2952 | transcript_id == 8444) %>%
+  group_by(transcript_id, speaker_code_2) %>%
+  summarize(entropy = entropy.NSB(.$n, CMD = here("childlanguageinfo/nsb-entropy-1.14/build/nsb-entropy")))
+
+
+o <- count_vector_frame %>%
+  filter(transcript_id == 6550 | transcript_id == 2952 | transcript_id == 8444) %>%
+  aggregate(by = c(transcript_id, speaker_code_2), FUN = entropy.NSB(n, CMD =                                                              here("childlanguageinfo/nsb-entropy-1.14/build/nsb-entropy")))
+
+v <- Vectorize(entropy.NSB)
+
+setwd("~/Desktop/childesResearch2020/childlanguageinfo")
+
+l <- count_vector_frame %>%
+  group_by(transcript_id, speaker_code_2) %>%
+  filter(transcript_id == 6550 | transcript_id == 2952 | transcript_id == 8444 | transcript_id == 8258) %>%
+  nest() 
+
+m <- 
+  map(l$data, ~entropy.NSB(.$n, CMD = here("childlanguageinfo/nsb-entropy-1.14/build/nsb-entropy")))
+
+x <- count_vector_frame %>%
+  group_by(transcript_id, speaker_code_2) %>%
+  summarize(entropy = entropy.NSB(.$n, CMD = here("childlanguageinfo/nsb-entropy-1.14/build/nsb-entropy")))
+```
+
+```{r}
+entropy_vector_frame <- count_vector_frame %>% 
+  group_by(transcript_id, speaker_code_2) %>% 
+  mutate(entropy = entropy.NSB(.$n, 
+    CMD = here("childlanguageinfo/nsb-entropy-1.14/build/nsb-entropy"))) %>%
+  summarise(entropy = first(entropy), age = first(basic_age))
+
+entropy_vector_gloss <- count_vector_gloss %>% 
+  group_by(transcript_id, speaker_code_2) %>% 
+  mutate(entropy = entropy(n, CMD = here("nsb-entropy-1.14/nsb.entropy.R"))) %>%
+  summarise(entropy = first(entropy), age = first(basic_age))
+```
+```{r rondomize}
+entropy_rand_frame <- entropy_vector_frame %>%
+  group_by(age, speaker_code_2) %>%
+  mutate(entropy_random = entropy[sample(row_number())]) %>%
+  ungroup()
+
+entropy_rand_gloss <- entropy_vector_gloss %>%
+  group_by(age, speaker_code_2) %>%
+  mutate(entropy_random = entropy[sample(row_number())]) %>%
+  ungroup()
+```
+
+
+```{r graph1}
+entropy_rand_frame %>%
+  ggplot(aes(age, entropy_random, color = speaker_code_2)) +
+  geom_point(alpha = 0.8) +
+  geom_smooth() +
+  geom_point(data = entropy_rand_gloss, alpha = 0.8) +
+  geom_smooth(data = entropy_rand_gloss) +
+  ylab("Entropy") +
+  xlab("Exact Age") +
+  ggtitle("Entropy of Frames and Gloss") +
+  theme_classic()
+```
+
+
+
+```{r}
+entropy_rand_frame %>%
+  pivot_longer(cols = c(entropy, entropy_random), names_to = "is_random", values_to = "entropy") %>%
+  pivot_wider(values_from = entropy, names_from = speaker_code_2) %>%
+  ggplot(aes(x = PAR, y = CHI, color = age)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~is_random)
+```
