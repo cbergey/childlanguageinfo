@@ -1,0 +1,189 @@
+---
+title: "words_entropy"
+author: "Zoe Marshall"
+date: "7/15/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(dplyr)
+library(here)
+library(feather)
+library(tidyverse)
+library(plotly)
+library(reticulate)
+library(entropy)
+library(tidyboot)
+library(RColorBrewer)
+```
+
+```{r readfeather}
+framed_childes <- 
+  read_feather(here("childlanguageinfo/childes_parsed_frames.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id),
+         utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(target_child_age <= 60) %>%
+  filter(!str_detect(gloss, "yyy"),!str_detect(gloss, "xxx"),
+         !is.na(target_child_age)) %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code))
+```
+
+```{r filter}
+par_child <- framed_childes %>%
+  mutate(speaker_code_2 = ifelse(speaker_code == "MOT" | speaker_code == "FAT", "PAR", speaker_code))
+
+valid_transcripts <- par_child %>%
+  filter(speaker_code_2 == "CHI" | speaker_code_2 == "PAR") %>%
+  group_by(transcript_id) %>%
+  count() %>%
+  filter(n > 100)
+
+more_valid_transcripts <- par_child %>%
+  filter(speaker_code_2 == "CHI" | speaker_code_2 == "PAR") %>%
+  group_by(speaker_code_2, transcript_id) %>%
+  count() %>%
+  filter(n > 10)
+
+valid_utt <- framed_childes %>%
+  group_by(utt_parse) %>%
+  count() %>%
+  filter(n > 300)
+```
+
+```{r clean}
+children_with_ages <- par_child %>%
+  filter(speaker_code_2 == "CHI" | speaker_code_2 == "PAR") %>%
+  mutate(basic_age = floor(target_child_age)) %>%
+  filter(transcript_id %in% valid_transcripts$transcript_id) %>%
+  filter(transcript_id %in% more_valid_transcripts$transcript_id) %>%
+  filter(utt_parse %in% valid_utt$utt_parse)
+```
+
+```{r word}
+s1 <- strsplit(children_with_ages$gloss, split = " ")
+separate_data2 <- data.frame(transcript_id = rep(children_with_ages$transcript_id, sapply(s1, length)),
+           speaker_code = rep(children_with_ages$speaker_code_2, sapply(s1, length)),
+           basic_age = rep(children_with_ages$basic_age, sapply(s1, length)),
+           word = unlist(s1))
+
+count_vector_gloss <- separate_data2 %>%
+  group_by(word, basic_age, transcript_id, speaker_code) %>%
+  count()
+```
+
+```{r entropy_word}
+entrop_vector_gloss <- count_vector_gloss %>%
+  group_by(transcript_id, speaker_code) %>%
+  mutate(entropy = entropy(n)) %>%
+  summarise(entropy = first(entropy), age = first(basic_age))
+```
+
+
+```{r word-pos}
+s2 <- strsplit(children_with_ages$utt_parse, split = " ")
+separate_data <- data.frame(transcript_id = rep(children_with_ages$transcript_id, sapply(s2, length)),
+           speaker_code = rep(children_with_ages$speaker_code_2, sapply(s2, length)),
+           basic_age = rep(children_with_ages$basic_age, sapply(s2, length)),
+           word_pos = unlist(s2))
+
+count_vector_word_pos <- separate_data %>%
+  group_by(word_pos, basic_age, transcript_id, speaker_code) %>%
+  count()
+```
+
+```{r entropy_word-pos}
+entrop_vector_word_pos <- count_vector_word_pos %>%
+  group_by(transcript_id, speaker_code) %>%
+  mutate(entropy = entropy(n)) %>%
+  summarise(entropy = first(entropy), age = first(basic_age))
+```
+
+```{r graph_word}
+entrop_vector_word_pos %>%
+  ggplot(aes(age, entropy, color = speaker_code)) +
+  geom_point(alpha = 0.08) +
+  geom_smooth(aes(label = "words")) + 
+  geom_point(data = entrop_vector_gloss, alpha = 0.08) +
+  geom_smooth(data = entrop_vector_gloss) +
+  ylab("Entropy") +
+  xlab("Exact Age") +
+  ggtitle("Entropy of Words and Parsed Tokens") +
+  theme_classic()
+```
+
+```{r compare}
+x <- entrop_vector_word_pos %>%
+  filter(speaker_code == "CHI") %>%
+  mutate(x = entropy) 
+x <- x[,c(1, 4, 5)]
+
+y <- entrop_vector_word_pos %>%
+  filter(speaker_code == "PAR") %>%
+  mutate(y = entropy)
+y <- y[,c(1, 4, 5)]
+
+new_entrop <- merge(x, y)
+```
+
+```{r graph2}
+new_entrop %>%
+  ggplot(aes(x, y, color = age)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm") +
+  xlab("Child Entropy") +
+  ylab("Mother Entropy") +
+  ggtitle("Entropy (POS tags) Between Conversational Partners") +
+  theme_classic() +
+  scale_color_gradient(low="lightblue1", high="blue")
+```
+
+```{r graph_facet_year}
+new_entrop <- new_entrop %>%
+  mutate(year = floor(age / 12))
+
+new_entrop %>%
+  ggplot(aes(x, y)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~year) +
+  xlab("Child Entropy") +
+  ylab("Mother Entropy") +
+  ggtitle("Entropy Between Conversation Partners (yearly, by parsed tokens)")
+```
+
+```{r graph_facet}
+new_entrop %>%
+  filter(age <= 16) %>%
+  ggplot(aes(x, y)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~age) +
+  xlab("Child Entropy") +
+  ylab("Mother Entropy")
+```
+
+```{r graph_facet2}
+new_entrop %>%
+  filter(age > 16, age <= 28) %>%
+  ggplot(aes(x, y)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~age) +
+  xlab("Child Entropy") +
+  ylab("Mother Entropy") 
+```
+
+```{r graph_facet3}
+new_entrop %>%
+  filter(age > 28, age <= 40) %>%
+  ggplot(aes(x, y)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~age) +
+  xlab("Child Entropy") +
+  ylab("Mother Entropy") 
+```
