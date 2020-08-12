@@ -1,0 +1,591 @@
+---
+title: "Framing Style Analysis"
+author: "Zoe Marshall"
+date: "6/29/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(dplyr)
+library(here)
+library(feather)
+library(tidyverse)
+library(plotly)
+library(reticulate)
+library(tidyboot)
+library(DT)
+library(scales)
+library(pals)
+library(ggplot2)
+```
+
+```{r readfeather}
+framed_childes <- 
+  read_feather(here("childlanguageinfo/childes_parsed_frames.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id),
+         utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(target_child_age <= 60) %>%
+  filter(!str_detect(gloss, "yyy"),!str_detect(gloss, "xxx"),
+         !is.na(target_child_age)) %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code))
+```
+
+
+```{r filter}
+par_child <- framed_childes %>%
+  mutate(speaker_code_2 = ifelse(speaker_code == "MOT" | speaker_code == "FAT", "PAR", speaker_code))
+
+valid_transcripts <- par_child %>%
+  filter(speaker_code_2 == "CHI" | speaker_code_2 == "PAR") %>%
+  group_by(transcript_id) %>%
+  count() %>%
+  filter(n > 100)
+
+more_valid_transcripts <- par_child %>%
+  filter(speaker_code_2 == "CHI" | speaker_code_2 == "PAR") %>%
+  group_by(speaker_code_2, transcript_id) %>%
+  count() %>%
+  filter(n > 5)
+
+valid_utt <- framed_childes %>%
+  group_by(utt_parse) %>%
+  count() %>%
+  filter(n > 300)
+```
+
+```{r clean}
+children_with_ages <- par_child %>% 
+  filter(speaker_code_2=="CHI"|speaker_code_2=="PAR") %>% 
+  mutate(basic_age=floor(target_child_age)) %>% 
+  filter(transcript_id %in% valid_transcripts$transcript_id) %>%
+  filter(transcript_id %in% more_valid_transcripts$transcript_id) %>%
+  filter(utt_parse %in% valid_utt$utt_parse)
+```
+
+
+```{r top_frames}
+frames <- children_with_ages %>%
+  count(utt_parse) %>%
+  arrange(desc(n))
+
+top_frames <- frames %>%
+  filter(n > 5000)
+
+datatable(top_frames)
+
+
+top_multi_frames <- frames %>%
+  filter(utt_parse == "where 's the NOUN" | utt_parse == "ADJ NOUN" | utt_parse == "what 's that" |
+           utt_parse == "i do n't know" | utt_parse == "what 's this" | utt_parse == "VERB NOUN" |
+           utt_parse == "that 's a NOUN" | utt_parse == "that 's right" | utt_parse == "VERB you" |
+           utt_parse == "what is that" | utt_parse == "what NOUN" | utt_parse == "VERB the NOUN" |
+           utt_parse == "no NOUN" | utt_parse == "VERB SYM you" | utt_parse == "VERB a NOUN" |
+           utt_parse == "NOUN NOUN" | utt_parse == "NOUN NOUN NOUN")
+
+datatable(top_multi_frames)
+```
+
+```{r}
+general_makeup <- children_with_ages %>%
+  group_by(basic_age) %>%
+  count()
+```
+
+```{r top_frames_by_year}
+all_top <- children_with_ages %>%
+  filter(utt_parse %in% top_frames$utt_parse) %>%
+  mutate(age_6 = floor(basic_age / 6))
+
+
+all_top %>%
+  ggplot(aes(utt_parse)) +
+  geom_bar() +
+  facet_wrap(~age_6) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 5)) 
+
+all_top %>%
+  ggplot(aes(x = age_6, fill = utt_parse)) +
+  geom_bar(position = "fill") +
+  theme_classic() +
+  scale_fill_manual(values = as.vector(kelly(17)))
+
+all_top %>%
+  ggplot(aes(x = age_6, fill = utt_parse)) +
+  geom_bar(position = "fill") +
+  facet_wrap(~speaker_code_2) +
+  theme_classic() +
+  scale_fill_manual(values = as.vector(kelly(17)))
+
+
+
+
+all_top_multi <- children_with_ages %>%
+  filter(utt_parse %in% top_multi_frames$utt_parse) %>%
+  mutate(age_6 = floor(basic_age / 6))
+
+all_top_multi %>%
+  ggplot(aes(x = age_6, fill = utt_parse)) +
+  geom_bar(position = "fill") +
+  theme_classic() +
+  scale_fill_manual(values = as.vector(polychrome(17)))
+
+all_top_multi %>%
+  ggplot(aes(x = age_6, fill = utt_parse)) +
+  geom_bar(position = "fill") +
+  facet_wrap(~speaker_code_2) +
+  theme_classic() +
+  scale_fill_manual(values = as.vector(polychrome(17)))
+```
+
+
+
+```{r top}
+basic <- children_with_ages %>%
+  filter(utt_parse == "NOUN") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_basic <- general_makeup %>%
+  filter(basic_age %in% basic$basic_age)
+
+basic %>%
+  ggplot(aes(x = basic_age, y = n / (avg_basic$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("NOUN")
+
+
+
+intj <- children_with_ages %>%
+  filter(utt_parse == "INTJ") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_intj <- general_makeup %>%
+  filter(basic_age %in% intj$basic_age)
+
+intj %>%
+  ggplot(aes(basic_age, n / (avg_intj$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("intj")
+
+
+
+yeah <- children_with_ages %>%
+  filter(utt_parse == "yeah") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_yeah <- general_makeup %>%
+  filter(basic_age %in% yeah$basic_age)
+
+yeah %>%
+  ggplot(aes(basic_age, n / (avg_yeah$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("yeah")
+
+
+
+no <- children_with_ages %>%
+  filter(utt_parse == "no") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_no <- general_makeup %>%
+  filter(basic_age %in% no$basic_age)
+
+no %>%
+  ggplot(aes(x = basic_age, y = n / (avg_no$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("no")
+
+
+
+okay <- children_with_ages %>%
+  filter(utt_parse == "okay") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_okay <- general_makeup %>%
+  filter(basic_age %in% okay$basic_age)
+
+okay %>%
+  ggplot(aes(basic_age, n / (avg_okay$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("Okay")
+
+
+
+adj <- children_with_ages %>%
+  filter(utt_parse == "ADJ") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_adj <- general_makeup %>%
+  filter(basic_age %in% adj$basic_age)
+
+adj %>%
+  ggplot(aes(basic_age, n / (avg_adj$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("ADJ")
+
+
+
+noun_noun <- children_with_ages %>%
+  filter(utt_parse == "NOUN NOUN") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_noun_noun <- general_makeup %>%
+  filter(basic_age %in% noun_noun$basic_age)
+
+noun_noun %>%
+  ggplot(aes(basic_age, n / (avg_noun_noun$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("NOUN NOUN")
+
+
+
+oh <- children_with_ages %>%
+  filter(utt_parse == "oh") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_oh <- general_makeup %>%
+  filter(basic_age %in% oh$basic_age)
+
+oh %>%
+  ggplot(aes(basic_age, n / (avg_oh$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("Oh")
+
+
+
+adj_noun <- children_with_ages %>%
+  filter(utt_parse == "ADJ NOUN") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_adj_noun <- general_makeup %>%
+  filter(basic_age %in% adj_noun$basic_age)
+
+adj_noun %>%
+  ggplot(aes(basic_age, n / (avg_adj_noun$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("ADJ NOUN")
+
+
+
+what <- children_with_ages %>%
+  filter(utt_parse == "what") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_what <- general_makeup %>%
+  filter(basic_age %in% what$basic_age)
+
+what %>%
+  ggplot(aes(basic_age, n / (avg_what$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("What")
+
+
+
+a_noun <- children_with_ages %>%
+  filter(utt_parse == "a NOUN") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_a_noun <- general_makeup %>%
+  filter(basic_age %in% a_noun$basic_age)
+
+a_noun %>%
+  ggplot(aes(basic_age, n / (avg_a_noun$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("A NOUN")
+
+
+
+verb <- children_with_ages %>%
+  filter(utt_parse == "VERB") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_verb <- general_makeup %>%
+  filter(basic_age %in% verb$basic_age)
+
+verb %>%
+  ggplot(aes(basic_age, n / (avg_verb$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("VERB")
+
+
+
+yes <- children_with_ages %>%
+  filter(utt_parse == "yes") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_yes <- general_makeup %>%
+  filter(basic_age %in% yes$basic_age)
+
+yes %>%
+  ggplot(aes(basic_age, n / (avg_yes$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("yes")
+
+
+
+adverbs <- children_with_ages %>%
+  filter(utt_parse == "ADV") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_adverbs <- general_makeup %>%
+  filter(basic_age %in% adverbs$basic_age)
+
+adverbs %>%
+  ggplot(aes(basic_age, n / (avg_adverbs$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("Adverbs")
+
+
+
+huh <- children_with_ages %>%
+  filter(utt_parse == "huh") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_huh <- general_makeup %>%
+  filter(basic_age %in% huh$basic_age)
+
+huh %>%
+  ggplot(aes(basic_age, n / (avg_huh$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("Huh")
+
+
+
+what_that <- children_with_ages %>%
+  filter(utt_parse == "what 's that") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_what_that <- general_makeup %>%
+  filter(basic_age %in% what_that$basic_age)
+
+what_that %>%
+  ggplot(aes(basic_age, n / (avg_what_that$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("What's that")
+```
+
+
+```{r want}
+want <- children_with_ages %>%
+  filter(utt_parse == "i want NOUN") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_want <- general_makeup %>%
+  filter(basic_age %in% want$basic_age)
+
+want %>%
+  ggplot(aes(x = basic_age, y = n / (avg_want$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("I want NOUN")
+```
+
+
+```{r}
+basic_verb <- children_with_ages %>%
+  filter(utt_parse == "i VERB") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_basic_verb <- general_makeup %>%
+  filter(basic_age %in% basic_verb$basic_age)
+
+basic_verb %>%
+  ggplot(aes(x = basic_age, y = n / (avg_basic_verb$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("I VERB")
+
+
+
+do_it <- children_with_ages %>%
+  filter(utt_parse == "VERB NOUN") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_do_it <- general_makeup %>%
+  filter(basic_age %in% do_it$basic_age)
+
+do_it %>%
+  ggplot(aes(basic_age, n / (avg_do_it$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("VERB NOUN")
+```
+
+```{r whatIsThat}
+what_all <- children_with_ages %>%
+  filter(utt_parse == "what is that" | utt_parse == "what 's that NOUN" |
+           utt_parse == "what 's that" | utt_parse == "what is that NOUN") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_what_all <- general_makeup %>%
+  filter(basic_age %in% what$basic_age)
+
+what_all %>%
+  ggplot(aes(basic_age, n / (avg_what$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("what is that")
+```
+
+
+```{r DO}
+do <- children_with_ages %>%
+  filter(utt_parse == "i VERB a NOUN" | utt_parse == "i VERB the NOUN") %>%
+  group_by(basic_age, speaker_code_2) %>%
+  count
+
+avg_do <- general_makeup %>%
+  filter(basic_age %in% do$basic_age)
+
+do %>%
+  ggplot(aes(basic_age, n / (avg_do$n),
+             color = speaker_code_2)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("i verb a noun")
+```
+
+
+
+
+
+
+
+```{r speaker}
+children_with_ages %>%
+  group_by(speaker_code_2) %>%
+  count %>%
+  kable(caption = "Total")
+
+children_with_ages %>%
+  filter(utt_parse == "i want NOUN") %>%
+  group_by(speaker_code_2) %>%
+  count %>%
+  kable(caption = "I want a NOUN")
+  
+children_with_ages %>%
+  filter(utt_parse == "i want a NOUN") %>%
+  group_by(speaker_code_2) %>%
+  count %>%
+  kable(caption = "I want a NOUN")
+
+children_with_ages %>%
+  filter(utt_parse == "that is a NOUN") %>%
+  group_by(speaker_code_2) %>%
+  count %>%
+  kable(caption = "That is a NOUN")
+
+children_with_ages %>%
+  filter(utt_parse == "no") %>%
+  group_by(speaker_code_2) %>%
+  count %>%
+  kable(caption = "No")
+
+children_with_ages %>%
+  filter(utt_parse == "NOUN") %>%
+  group_by(speaker_code_2) %>%
+  count %>%
+  kable(caption = "NOUN")
+
+children_with_ages %>%
+  filter(utt_parse == "i VERB") %>%
+  group_by(speaker_code_2) %>%
+  count %>%
+  kable(caption = "I VERB")
+```
+
+
+```{r}
+framed_childes %>%
+  group_by(type, target_child_sex) %>%
+  filter(type != "broken for coding", target_child_sex == "female" | target_child_sex == "male") %>%
+  count
+
+framed_childes %>%
+  group_by(type, speaker_code) %>%
+  filter(speaker_code == "MOT" | speaker_code == "FAT" | speaker_code == "CHI") %>%
+  count
+
+# mother asks more of the questions?
+```
