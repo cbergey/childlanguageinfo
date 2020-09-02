@@ -77,3 +77,4 @@ convos %>%
   geom_histogram(aes(y=(..count..)/tapply(..count..,..PANEL..,sum)[..PANEL..])) +
   facet_wrap(~round_age)
 ```
+

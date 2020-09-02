@@ -82,6 +82,18 @@ entropy_vector_gloss <- count_vector_gloss %>%
   summarise(entropy = first(entropy), age = first(basic_age))
 ```
 
+```{r entropy}
+entropy_vector_frame <- count_vector_frame %>% 
+  group_by(transcript_id, speaker_code_2) %>% 
+  mutate(entropy = entropy(n, CMD = "nsb-entropy")) %>%
+  summarise(entropy = first(entropy), age = first(basic_age))
+
+entropy_vector_gloss <- count_vector_gloss %>% 
+  group_by(transcript_id, speaker_code_2) %>% 
+  mutate(entropy = entropy(n, CMD = here("nsb-entropy-1.14/nsb.entropy.R"))) %>%
+  summarise(entropy = first(entropy), age = first(basic_age))
+```
+
 ```{r graph1}
 entropy_vector_frame %>%
   ggplot(aes(age, entropy, color = speaker_code_2)) +
