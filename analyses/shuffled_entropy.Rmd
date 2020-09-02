@@ -8,6 +8,7 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(knitr)
+library(plyr)
 library(dplyr)
 library(here)
 library(feather)
@@ -19,12 +20,14 @@ library(tidyboot)
 library(randomizeR)
 library(purrr)
 library(gsl)
+library(hash)
+use_virtualenv("r-reticulate")
 ```
 
 
 ```{r readfeather}
 framed_childes <- 
-  read_feather(here("childlanguageinfo/childes_parsed_frames.feather")) %>%
+  read_feather(here("childes_parsed_frames.feather")) %>%
   mutate(transcript_id = as.numeric(transcript_id),
          utterance_order = as.numeric(utterance_order),
          target_child_age = as.numeric(target_child_age)) %>%
@@ -76,35 +79,146 @@ count_vector_gloss <- children_with_ages %>%
 
 ```{r entropy}
 y = c(4, 2, 3, 0, 2, 4, 0, 0, 2, 1, 1) 
-entropy.NSB(y, CMD = here("childlanguageinfo/nsb-entropy-1.14/build/nsb-entropy"))
+entropy.NSB(y, CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
 ```
 
 ```{r}
 z <- count_vector_frame %>%
   filter(transcript_id == 6550 | transcript_id == 2952 | transcript_id == 8444) %>%
   group_by(transcript_id, speaker_code_2) %>%
-  summarize(entropy = entropy.NSB(.$n, CMD = here("childlanguageinfo/nsb-entropy-1.14/build/nsb-entropy")))
+  summarize(entropy = entropy.NSB(.$n, CMD = here("nsb-entropy-1.14/build/nsb-entropy")))
 
 
 o <- count_vector_frame %>%
   filter(transcript_id == 6550 | transcript_id == 2952 | transcript_id == 8444) %>%
-  aggregate(by = c(transcript_id, speaker_code_2), FUN = entropy.NSB(n, CMD =                                                              here("childlanguageinfo/nsb-entropy-1.14/build/nsb-entropy")))
-
-v <- Vectorize(entropy.NSB)
+  aggregate(by = c(transcript_id, speaker_code_2), FUN = entropy.NSB(n, CMD =                                                        here("childlanguageinfo/nsb-entropy-1.14/build/nsb-entropy")))
 
 setwd("~/Desktop/childesResearch2020/childlanguageinfo")
 
-l <- count_vector_frame %>%
-  group_by(transcript_id, speaker_code_2) %>%
-  filter(transcript_id == 6550 | transcript_id == 2952 | transcript_id == 8444 | transcript_id == 8258) %>%
-  nest() 
 
-m <- 
-  map(l$data, ~entropy.NSB(.$n, CMD = here("childlanguageinfo/nsb-entropy-1.14/build/nsb-entropy")))
 
 x <- count_vector_frame %>%
-  group_by(transcript_id, speaker_code_2) %>%
-  summarize(entropy = entropy.NSB(.$n, CMD = here("childlanguageinfo/nsb-entropy-1.14/build/nsb-entropy")))
+  filter(transcript_id == 6550 | transcript_id == 2952 | transcript_id == 8444) %>%
+  filter(!is.na(n) | !is.null(n)) %>%
+  dlply(.variables = c("transcript_id", "speaker_code_2")) %>% 
+  purrr::transpose()
+
+nsb_entropy <- function(l) {
+  map(l, entropy.NSB(l, CMD = here("nsb-entropy-1.14/build/nsb-entropy")))
+}
+
+
+map(x$n, nsb_entropy)
+
+map(entropy_list, nsb_entropy)
+
+
+
+df <- count_vector_frame %>% 
+  mutate(unique_grouping = paste0(transcript_id, speaker_code_2))
+
+entropy_list <- df %>%
+  pivot_wider(names_from = "utt_parse", values_from = "n") 
+
+entropy_list[is.na(entropy_list)] <- 0
+
+entropy_list <- entropy_list %>%
+  select(-basic_age, -speaker_code_2, -transcript_id)
+  
+
+for(i in 1:116) {
+  if (length(entropy_list[[i]]) != 1) {
+    entropy_list[[i]] <- entropy.NSB(entropy_list[[i]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+  }
+}
+
+for(i in 118:843) {
+  if (length(entropy_list[[i]]) != 1) {
+    entropy_list[[i]] <- entropy.NSB(entropy_list[[i]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+  }
+}
+
+for(i in 845:860) {
+  if (length(entropy_list[[i]]) != 1) {
+    entropy_list[[i]] <- entropy.NSB(entropy_list[[i]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+  }
+}
+
+for(i in 862:900) {
+  if (length(entropy_list[[i]]) != 1) {
+    entropy_list[[i]] <- entropy.NSB(entropy_list[[i]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+  }
+}
+
+for(i in 901:987) {
+  if (length(entropy_list[[i]]) != 1) {
+    entropy_list[[i]] <- entropy.NSB(entropy_list[[i]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+  }
+}
+
+for(i in 989:1021) {
+  if (length(entropy_list[[i]]) != 1) {
+    entropy_list[[i]] <- entropy.NSB(entropy_list[[i]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+  }
+}
+
+for(i in 1023:1049) {
+  if (length(entropy_list[[i]]) != 1) {
+    entropy_list[[i]] <- entropy.NSB(entropy_list[[i]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+  }
+}
+
+for(i in 1051:1057) {
+  if (length(entropy_list[[i]]) != 1) {
+    entropy_list[[i]] <- entropy.NSB(entropy_list[[i]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+  }
+}
+
+for(i in 1059:1095) {
+  if (length(entropy_list[[i]]) != 1) {
+    entropy_list[[i]] <- entropy.NSB(entropy_list[[i]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+  }
+}
+
+for(i in 1097:1205) {
+  if (length(entropy_list[[i]]) != 1) {
+    entropy_list[[i]] <- entropy.NSB(entropy_list[[i]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+  }
+}
+
+for(i in 1207:1259) {
+  if (length(entropy_list[[i]]) != 1) {
+    entropy_list[[i]] <- entropy.NSB(entropy_list[[i]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+  }
+}
+
+for(i in 1261:1284) {
+  if (length(entropy_list[[i]]) != 1) {
+    entropy_list[[i]] <- entropy.NSB(entropy_list[[i]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+  }
+}
+
+for(i in 1286:1300) {
+  if (length(entropy_list[[i]]) != 1) {
+    entropy_list[[i]] <- entropy.NSB(entropy_list[[i]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+  }
+}
+
+entropy_list[[1260]] <- entropy.NSB(entropy_list[[1260]], CMD = here("nsb-entropy-1.14/build/nsb-entropy"))
+
+# can't do a list size of 1
+```
+
+```{python}
+import ndd
+counts = [4, 12, 4, 5, 3, 1, 5, 1, 2, 2, 2, 2, 11, 3, 4, 12, 12, 1, 2]
+ndd.entropy(counts, k=100)
+
+for value in r.entropy_list.values():
+  print(value)
+
+r.entropy_list.values()
+
 ```
 
 ```{r}
