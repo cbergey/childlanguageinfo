@@ -46,7 +46,8 @@ valid_transcripts <- par_child %>%
   filter(speaker_code_2 == "CHI" | speaker_code_2 == "PAR") %>%
   group_by(transcript_id) %>%
   count() %>%
-  filter(n > 100)
+  ungroup() %>% group_by(transcript_id) %>%
+  count()
 
 more_valid_transcripts <- par_child %>%
   filter(speaker_code_2 == "CHI" | speaker_code_2 == "PAR") %>%
