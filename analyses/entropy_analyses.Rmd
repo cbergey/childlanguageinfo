@@ -56,106 +56,79 @@ cleaned_childes <- cleaned_childes %>%
   filter(transcript_id %in% valid_transcripts$transcript_id) 
 
 count_vector_frame <- cleaned_childes %>% 
-  group_by(utt_parse, transcript_id, speaker_code) %>%
+  group_by(utt_parse, transcript_id, age_in_months, speaker_code) %>%
   count() %>% ungroup()
 
 count_vector_gloss <- cleaned_childes %>%
-  group_by(gloss, transcript_id, speaker_code) %>%
+  group_by(gloss, transcript_id, age_in_months, speaker_code) %>%
   count() %>% ungroup()
 ```
 
 ```{r}
-counts_wide <- count_vector_frame %>%
-  pivot_wider(names_from = "utt_parse", values_from = "n", values_fill = 0) %>%
-  mutate(name = paste0(transcript_id, speaker_code)) %>%
-  select(name, everything()) %>%
-  select(-transcript_id, -speaker_code) 
+num_frames <- n_distinct(count_vector_frame$utt_parse)
 
-row.names(counts_wide) <- counts_wide$name
+counts <- count_vector_frame %>%
+  mutate(name = paste0(transcript_id, speaker_code)) 
 
-transcripts_list <- setNames(as.list(as.data.frame(t(counts_wide %>% select(-name)))), rownames(counts_wide))
+counts <- split(counts$n, counts$name)
 ```
 
 ```{python}
 import ndd
-
+k_val = r.num_frames
 entropies_dict = {}
 
-for key, value in r.transcripts_list.items():
-  entropies_dict[key] = ndd.entropy(value)
+
+for key, value in r.counts.items():
+  entropies_dict[key] = ndd.entropy(value, k = k_val)
+
 ```
 
 ```{r}
-entropies <- py$entropies_dict
+entropies <- py$entropies_dict %>%
+  as.data.frame() %>% t() %>% as.data.frame() %>%
+  rownames_to_column() %>%
+  rename(name = rowname, entropy = V1) %>%
+  mutate(name = str_remove(name, "X"))
 
+cleaned_childes <- cleaned_childes %>%
+  mutate(name = paste0(transcript_id, speaker_code)) %>%
+  left_join(entropies, by = "name")
+  
 entropy_vector_frame <- count_vector_frame %>% 
-  group_by(transcript_id, speaker_code_2) %>% 
-  mutate(entropy = entropy(n)) %>%
-  summarise(entropy = first(entropy), age = first(basic_age))
+  mutate(name = paste0(transcript_id, speaker_code)) %>%
+  left_join(entropies, by = "name")
 
-entropy_vector_gloss <- count_vector_gloss %>% 
-  group_by(transcript_id, speaker_code_2) %>% 
-  mutate(entropy = entropy(n)) %>%
-  summarise(entropy = first(entropy), age = first(basic_age))
-```
-
-```{r rondomize}
-entropy_rand_frame <- entropy_vector_frame %>%
-  group_by(age, speaker_code_2) %>%
+par_child_entropies <- entropy_vector_frame %>%
+  group_by(transcript_id, speaker_code) %>%
+  summarise(entropy = first(entropy), age = first(age_in_months)) %>%
+  group_by(age, speaker_code) %>%
   mutate(entropy_random = entropy[sample(row_number())]) %>%
   ungroup()
 
-entropy_rand_gloss <- entropy_vector_gloss %>%
-  group_by(age, speaker_code_2) %>%
-  mutate(entropy_random = entropy[sample(row_number())]) %>%
-  ungroup()
+
+# entropy_rand_gloss <- entropy_vector_gloss %>%
+#   group_by(age, speaker_code) %>%
+#   mutate(entropy_random = entropy[sample(row_number())]) %>%
+#   ungroup()
 ```
 
 
-```{r}
-entropy_vector_frame <- count_vector_frame %>% 
-  group_by(transcript_id, speaker_code_2) %>% 
-  mutate(entropy = entropy.NSB(.$n, 
-    CMD = here("childlanguageinfo/nsb-entropy-1.14/build/nsb-entropy"))) %>%
-  summarise(entropy = first(entropy), age = first(basic_age))
-
-entropy_vector_gloss <- count_vector_gloss %>% 
-  group_by(transcript_id, speaker_code_2) %>% 
-  mutate(entropy = entropy(n, CMD = here("nsb-entropy-1.14/nsb.entropy.R"))) %>%
-  summarise(entropy = first(entropy), age = first(basic_age))
-```
-```{r rondomize}
-entropy_rand_frame <- entropy_vector_frame %>%
-  group_by(age, speaker_code_2) %>%
-  mutate(entropy_random = entropy[sample(row_number())]) %>%
-  ungroup()
-
-entropy_rand_gloss <- entropy_vector_gloss %>%
-  group_by(age, speaker_code_2) %>%
-  mutate(entropy_random = entropy[sample(row_number())]) %>%
-  ungroup()
-```
-
-
-```{r graph1}
-entropy_rand_frame %>%
-  ggplot(aes(age, entropy_random, color = speaker_code_2)) +
+```{r graph_entropies_over_age}
+par_child_entropies %>%
+  ggplot(aes(x = age, y = entropy, color = speaker_code)) +
   geom_point(alpha = 0.8) +
   geom_smooth() +
-  geom_point(data = entropy_rand_gloss, alpha = 0.8) +
-  geom_smooth(data = entropy_rand_gloss) +
   ylab("Entropy") +
-  xlab("Exact Age") +
-  ggtitle("Entropy of Frames and Gloss") +
+  xlab("Age") +
+  ggtitle("Entropy of Frames") +
   theme_classic()
 ```
 
-
-
-```{r}
-entropy_rand_frame %>%
+```{r graph_random_entropies}
+par_child_entropies %>%
   pivot_longer(cols = c(entropy, entropy_random), names_to = "is_random", values_to = "entropy") %>%
-  pivot_wider(values_from = entropy, names_from = speaker_code_2) %>%
+  pivot_wider(values_from = entropy, names_from = speaker_code) %>%
   ggplot(aes(x = PAR, y = CHI, color = age)) +
   geom_point() +
   geom_smooth(method = "lm") +
