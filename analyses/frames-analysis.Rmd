@@ -17,6 +17,9 @@ library(childesr)
 library(RColorBrewer)
 library(feather)
 library(DT)
+library(scales)
+library(pals)
+library(ggplot2)
 
 opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
                error = FALSE, cache = TRUE, tidy = FALSE)
@@ -24,20 +27,61 @@ opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
 theme_set(theme_classic(base_size = 14))
 ```
 
-```{r read-data}
-convos <- read_feather(here("data/childes_parsed_frames.feather"))
+```{r read_feather}
+framed_childes <- 
+  read_feather(here("data/childes_parsed_frames.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id),
+         utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(target_child_age <= 60) %>%
+  filter(!str_detect(gloss, "yyy"),!str_detect(gloss, "xxx"),
+         !is.na(target_child_age)) %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code))
+```
+
+```{r filter}
+cleaned_childes <- framed_childes %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOT" | speaker_code == "FAT", "PAR", speaker_code))
+
+valid_transcripts <- cleaned_childes %>%
+  filter(speaker_code == "CHI" | speaker_code == "PAR") %>%
+  group_by(transcript_id, speaker_code) %>% count() %>%
+  filter(n > 100) %>%
+  ungroup() %>% group_by(transcript_id) %>% count() %>%
+  filter(n == 2)
+```
+
+```{r clean}
+cleaned_childes <- cleaned_childes %>% 
+  filter(speaker_code == "CHI"| speaker_code == "PAR") %>% 
+  mutate(age_in_months = floor(target_child_age)) %>% 
+  filter(transcript_id %in% valid_transcripts$transcript_id) 
+
+count_vector_frame <- cleaned_childes %>% 
+  group_by(utt_parse, transcript_id, age_in_months, speaker_code) %>%
+  count() %>% ungroup()
 ```
 
 ```{r top-frames}
-frames <- convos %>%
+frames <- count_vector_frame %>%
   count(utt_parse) %>%
   arrange(desc(n)) 
 
 top_frames <- frames %>%
-  filter(n > 1) 
+  filter(n > 500) 
+
+top_multi_frames <- frames %>%
+  filter(utt_parse == "NOUN NOUN" | utt_parse == "ADJ NOUN" | utt_parse == "i do n't know" |
+           utt_parse == "what 's that" | utt_parse == "VERB NOUN" | utt_parse == "VERB it" |
+           utt_parse == "DET NOUN" | utt_parse == "no NOUN" | utt_parse == "that 's a NOUN" |
+           utt_parse == "NOUN NOUN NOUN" | utt_parse == "VERB the NOUN" | utt_parse == "that 's ADJ" |
+           utt_parse == "INTJ INTJ" | utt_parse == "VERB a NOUN" | utt_parse == "i VERB" |
+           utt_parse == "it 's a NOUN" | utt_parse == "a NOUN NOUN")
 
 datatable(top_frames)
 ```
+
 
 ```{r zipf}
 plot(log10(seq_along(frames$n)), log10(unclass(frames$n)))
@@ -78,3 +122,164 @@ convos %>%
   facet_wrap(~round_age)
 ```
 
+```{r}
+general_makeup <- count_vector_frame %>%
+  group_by(age_in_months) %>%
+  count()
+```
+
+```{r top_frames_by_year}
+all_top <- count_vector_frame %>%
+  filter(utt_parse %in% top_frames$utt_parse) %>%
+  mutate(age_6 = floor(age_in_months / 6))
+
+
+all_top %>%
+  ggplot(aes(utt_parse)) +
+  geom_bar() +
+  facet_wrap(~age_6) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 5)) 
+
+all_top %>%
+  ggplot(aes(x = age_6, fill = utt_parse)) +
+  geom_bar(position = "fill") +
+  theme_classic() +
+  scale_fill_manual(values = as.vector(kelly(17)))
+
+all_top %>%
+  ggplot(aes(x = age_6, fill = utt_parse)) +
+  geom_bar(position = "fill") +
+  facet_wrap(~speaker_code_2) +
+  theme_classic() +
+  scale_fill_manual(values = as.vector(kelly(17)))
+
+
+
+
+all_top_multi <- count_vector_frame %>%
+  filter(utt_parse %in% top_multi_frames$utt_parse) %>%
+  mutate(age_6 = floor(basic_age / 6))
+
+all_top_multi %>%
+  ggplot(aes(x = age_6, fill = utt_parse)) +
+  geom_bar(position = "fill") +
+  theme_classic() +
+  scale_fill_manual(values = as.vector(polychrome(17)))
+
+all_top_multi %>%
+  ggplot(aes(x = age_6, fill = utt_parse)) +
+  geom_bar(position = "fill") +
+  facet_wrap(~speaker_code_2) +
+  theme_classic() +
+  scale_fill_manual(values = as.vector(polychrome(17)))
+```
+
+```{r specific_frames}
+basic_verb <- count_vector_frame %>%
+  filter(utt_parse == "i VERB") %>%
+  group_by(age_in_months, speaker_code) %>%
+  count
+
+avg_basic_verb <- general_makeup %>%
+  filter(age_in_months %in% basic_verb$age_in_months)
+
+basic_verb %>%
+  ggplot(aes(x = age_in_months, y = n / (avg_basic_verb$n),
+             color = speaker_code)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("I VERB")
+
+
+
+what_all <- count_vector_frame %>%
+  filter(utt_parse == "what is that" | utt_parse == "what 's that NOUN" |
+           utt_parse == "what 's that" | utt_parse == "what is that NOUN") %>%
+  group_by(age_in_months, speaker_code) %>%
+  count
+
+avg_what_all <- general_makeup %>%
+  filter(age_in_months %in% what$age_in_months)
+
+what_all %>%
+  ggplot(aes(age_in_months, n / (avg_what$n),
+             color = speaker_code)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("what is that")
+
+
+
+what <- count_vector_frame %>%
+  filter(utt_parse == "what") %>%
+  group_by(age_in_months, speaker_code) %>%
+  count
+
+avg_what <- general_makeup %>%
+  filter(age_in_months %in% what$age_in_months)
+
+what %>%
+  ggplot(aes(age_in_months, n / (avg_what$n),
+             color = speaker_code)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("What")
+
+
+
+a_noun <- count_vector_frame %>%
+  filter(utt_parse == "a NOUN") %>%
+  group_by(age_in_months, speaker_code) %>%
+  count
+
+avg_a_noun <- general_makeup %>%
+  filter(age_in_months %in% a_noun$age_in_months)
+
+a_noun %>%
+  ggplot(aes(age_in_months, n / (avg_a_noun$n),
+             color = speaker_code)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("A NOUN")
+
+
+
+what_that <- count_vector_frame %>%
+  filter(utt_parse == "what 's that") %>%
+  group_by(age_in_months, speaker_code) %>%
+  count
+
+avg_what_that <- general_makeup %>%
+  filter(age_in_months %in% what_that$age_in_months)
+
+what_that %>%
+  ggplot(aes(age_in_months, n / (avg_what_that$n),
+             color = speaker_code)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("What's that")
+
+
+
+want <- count_vector_frame %>%
+  filter(utt_parse == "i want NOUN") %>%
+  group_by(age_in_months, speaker_code) %>%
+  count
+
+avg_want <- general_makeup %>%
+  filter(age_in_months %in% want$age_in_months)
+
+want %>%
+  ggplot(aes(x = age_in_months, y = n / (avg_want$n),
+             color = speaker_code)) +
+  geom_line() +
+  geom_smooth() +
+  theme_classic() +
+  ggtitle("I want NOUN")
+```

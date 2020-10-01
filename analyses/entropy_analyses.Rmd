@@ -71,33 +71,49 @@ counts <- count_vector_frame %>%
   mutate(name = paste0(transcript_id, speaker_code)) 
 
 counts <- split(counts$n, counts$name)
+
+
+counts_gloss <- count_vector_gloss %>%
+  mutate(name = paste0(transcript_id, speaker_code))
+
+counts_gloss <- split(counts_gloss$n, counts_gloss$name)
 ```
 
 ```{python}
 import ndd
 k_val = r.num_frames
 entropies_dict = {}
+entropies_dict_gloss = {}
 
 
 for key, value in r.counts.items():
   entropies_dict[key] = ndd.entropy(value, k = k_val)
+  
+for key, value in r.counts_gloss.items():
+  entropies_dict_gloss[key] = ndd.entropy(value, k = k_val)
 
 ```
 
 ```{r}
-entropies <- py$entropies_dict %>%
+entropies_frames <- py$entropies_dict %>%
   as.data.frame() %>% t() %>% as.data.frame() %>%
   rownames_to_column() %>%
   rename(name = rowname, entropy = V1) %>%
   mutate(name = str_remove(name, "X"))
 
-cleaned_childes <- cleaned_childes %>%
-  mutate(name = paste0(transcript_id, speaker_code)) %>%
-  left_join(entropies, by = "name")
+entropies_gloss <- py$entropies_dict_gloss %>%
+  as.data.frame() %>% t() %>% as.data.frame() %>%
+  rownames_to_column() %>%
+  rename(name = rowname, entropy = V1) %>%
+  mutate(name = str_remove(name, "X"))
   
 entropy_vector_frame <- count_vector_frame %>% 
   mutate(name = paste0(transcript_id, speaker_code)) %>%
-  left_join(entropies, by = "name")
+  left_join(entropies_frames, by = "name")
+
+entropy_vector_gloss <- count_vector_gloss %>% 
+  mutate(name = paste0(transcript_id, speaker_code)) %>%
+  left_join(entropies_gloss, by = "name")
 
 par_child_entropies <- entropy_vector_frame %>%
   group_by(transcript_id, speaker_code) %>%
@@ -115,9 +131,9 @@ par_child_entropies <- entropy_vector_frame %>%
 
 
 ```{r graph_entropies_over_age}
-par_child_entropies %>%
-  ggplot(aes(x = age, y = entropy, color = speaker_code)) +
-  geom_point(alpha = 0.8) +
+entropy_vector_frame %>%
+  ggplot(aes(age_in_months, entropy, color = speaker_code)) +
+  geom_point(alpha = 0.08) +
   geom_smooth() +
   ylab("Entropy") +
   xlab("Age") +

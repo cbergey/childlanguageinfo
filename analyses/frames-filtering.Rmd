@@ -94,7 +94,7 @@ parsed_utts <- cleanutts %>%
 docs <- parsed_utts %>%
   arrange(transcript_id, utterance_order) %>%
   select(transcript_id, parse) %>%
-  pivot_wider(names_
+  pivot_wider(names)
 ```
 
 ```{r}
