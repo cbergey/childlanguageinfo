@@ -1,0 +1,172 @@
+---
+title: "switchboard_analysis"
+author: "Zoe Marshall"
+date: "7/31/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(dplyr)
+library(here)
+library(feather)
+library(tidyverse)
+library(plotly)
+library(reticulate)
+library(entropy)
+library(tidyboot)
+use_condaenv("r-reticulate")
+```
+
+```{r read_feather}
+switchboard <- read_feather(here("childlanguageinfo/switchboard (1).feather"))
+```
+
+```{r read_feather_childes}
+framed_childes <- 
+  read_feather(here("childlanguageinfo/data/childes_parsed_frames.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id),
+         utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(target_child_age <= 60) %>%
+  filter(!str_detect(gloss, "yyy"),!str_detect(gloss, "xxx"),
+         !is.na(target_child_age)) %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code))
+```
+
+```{r filter}
+cleaned_childes <- framed_childes %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOT" | speaker_code == "FAT", "PAR", speaker_code))
+
+valid_transcripts <- cleaned_childes %>%
+  filter(speaker_code == "CHI" | speaker_code == "PAR") %>%
+  group_by(transcript_id, speaker_code) %>% count() %>%
+  filter(n > 100) %>%
+  ungroup() %>% group_by(transcript_id) %>% count() %>%
+  filter(n == 2)
+```
+
+```{r clean_childes}
+cleaned_childes <- cleaned_childes %>% 
+  filter(speaker_code == "CHI"| speaker_code == "PAR") %>% 
+  mutate(age_in_months = floor(target_child_age)) %>% 
+  filter(transcript_id %in% valid_transcripts$transcript_id) 
+
+count_vector_word_childes <- cleaned_childes %>%
+  group_by(gloss, transcript_id, age_in_months, speaker_code) %>%
+  count() %>% ungroup()
+```
+
+```{r clean}
+switchboard$speaker_code <- rep(c("one", "two"), length.out=nrow(switchboard))
+```
+
+```{r words}
+s1 <- strsplit(switchboard$text, split = " ")
+separate_data <- data.frame(transcript_id = rep(switchboard$file, sapply(s1, length)),
+           speaker_code = rep(switchboard$speaker_code, sapply(s1, length)),
+           word = unlist(s1))
+
+count_vector_word <- separate_data %>%
+  group_by(word, transcript_id, speaker_code) %>%
+  count()
+```
+
+```{r words_childes}
+s2 <- strsplit(cleaned_childes$gloss, split = " ")
+separate_data2 <- data.frame(transcript_id = rep(cleaned_childes$transcript_id, sapply(s2, length)),
+           speaker_code = rep(cleaned_childes$speaker_code, sapply(s2, length)),
+           word = unlist(s2))
+
+count_vector_word_childes <- separate_data2 %>%
+  group_by(word, transcript_id, speaker_code) %>%
+  count()
+```
+
+```{r}
+counts_word <- count_vector_word %>%
+  mutate(name = gsub("-", "", paste0(transcript_id, speaker_code)))
+
+counts_word <- split(counts_word$n, counts_word$name)
+
+num_words <- n_distinct(count_vector_word$word)
+
+counts_word_childes <- count_vector_word_childes %>%
+  mutate(name = paste0(transcript_id, speaker_code))
+
+counts_word_childes <- split(counts_word_childes$n, counts_word_childes$name)
+
+num_words_childes <- n_distinct(count_vector_word_childes$word)
+```
+
+```{python}
+import ndd
+k_val = r.num_words
+k_val_childes = r.num_words_childes
+entropies_dict_word = {}
+entropies_dict_word_childes = {}
+
+for key, value in r.counts_word.items():
+  entropies_dict_word[key] = ndd.entropy(value, k = k_val)
+  
+for key, value in r.counts_word_childes.items():
+  entropies_dict_word_childes[key] = ndd.entropy(value, k = k_val)
+```
+
+```{r}
+entropies_word <- py$entropies_dict_word %>%
+  as.data.frame() %>% t() %>% as.data.frame() %>%
+  rownames_to_column() %>%
+  rename(name = rowname, entropy = V1) %>%
+  mutate(name = str_remove(name, "X"))
+
+entropy_vector_word <- count_vector_word %>% 
+  mutate(name = gsub("-", "", paste0(transcript_id, speaker_code))) %>%
+  left_join(entropies_word, by = "name")
+
+entropies_word_childes <- py$entropies_dict_word_childes %>%
+  as.data.frame() %>% t() %>% as.data.frame() %>%
+  rownames_to_column() %>%
+  rename(name = rowname, entropy = V1) %>%
+  mutate(name = str_remove(name, "X"))
+
+entropy_vector_word_childes <- count_vector_word_childes %>% 
+  mutate(name = gsub("-", "", paste0(transcript_id, speaker_code))) %>%
+  left_join(entropies_word_childes, by = "name")
+```
+
+```{r}
+one_two_entropies <- entropy_vector_word %>%
+  group_by(transcript_id, speaker_code) %>%
+  summarise(entropy = first(entropy)) %>%
+  group_by(speaker_code) %>%
+  mutate(entropy_random = entropy[sample(row_number())]) %>%
+  ungroup()
+
+par_child_entropies <- entropy_vector_word_childes %>%
+  group_by(transcript_id, speaker_code) %>%
+  summarise(entropy = first(entropy)) %>%
+  group_by(speaker_code) %>%
+  mutate(entropy_random = entropy[sample(row_number())]) %>%
+  ungroup()
+```
+
+```{r graph_random_entropies}
+one_two_entropies %>%
+  pivot_longer(cols = c(entropy, entropy_random), names_to = "is_random", values_to = "entropy") %>%
+  pivot_wider(values_from = entropy, names_from = speaker_code) %>%
+  ggplot(aes(x = one, y = two)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~is_random)
+
+par_child_entropies %>%
+  pivot_longer(cols = c(entropy, entropy_random), names_to = "is_random", values_to = "entropy") %>%
+  pivot_wider(values_from = entropy, names_from = speaker_code) %>%
+  ggplot(aes(x = PAR, y = CHI)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~is_random)
+```
