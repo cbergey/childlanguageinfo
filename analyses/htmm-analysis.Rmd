@@ -1,0 +1,62 @@
+---
+title: "htmm_analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(here)
+library(feather)
+library(tidyverse)
+library(plotly)
+library(entropy)
+library(tidyboot)
+library(purrr)
+library(DT)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+```
+
+```{r read-data}
+childes_htmm <- read_feather(here("data/childes_htmm_25.feather"))
+phi_vals <- read_csv(here("data/childes_25_phi_vals.csv"))
+childes_dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
+```
+
+```{r analysis}
+
+phi_wide <- phi_vals %>% 
+  group_by(topic) %>%
+  arrange(desc(phi_dev)) %>%
+  slice(1:20) %>%
+  mutate(num = 1:20) %>%
+  ungroup() %>%
+  select(topic, num, word) %>%
+  pivot_wider(names_from = topic, values_from = word) 
+
+datatable(phi_wide %>% select(-num))
+
+childes_htmm %>%
+  filter(speaker_code == "CHI" | speaker_code == "MOT") %>%
+  ggplot(aes(max_topic)) +
+  geom_histogram(binwidth = 1) +
+  facet_wrap(~speaker_code)
+
+childes_htmm %>%
+  filter(speaker_code == "CHI" | speaker_code == "MOT") %>%
+  mutate(age_in_months = floor(target_child_age)) %>%
+  ggplot(aes(x = age_in_months, fill = as.factor(max_topic))) +
+  geom_bar(position = "fill") +
+  facet_wrap(~speaker_code) +
+  theme_classic() 
+
+childes_htmm %>%
+  filter(speaker_code == "CHI" | speaker_code == "MOT",
+         target_child_id == 4304) %>%
+  select(speaker_code, gloss, target_child_age, utt_parse, max_topic) %>%
+  datatable()
+
+```
+

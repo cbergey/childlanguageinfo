@@ -169,4 +169,8 @@ par_child_entropies %>%
   geom_point() +
   geom_smooth(method = "lm") +
   facet_wrap(~is_random)
+<<<<<<< HEAD
 ```
+=======
+```
+>>>>>>> 6e237b590705fdecb5130d8bc7da830e9b09819b
