@@ -267,13 +267,17 @@ n_types = childes_htmm_select %>% distinct(max_topic) %>% nrow()
 ```
 
 ```{r read-hmm}
-childes_reconstruction <- read.csv(here("data/childes_25_reconstruction.csv"))
+childes_reconstruction <- read.csv(here("data/childes_topics_reconstruction.csv"))
 
-childes_htmm_hmm <- childes_htmm %>%
+childes_htmm_hmm <- childes_htmm_select %>%
   select(transcript_id, utterance_order, speaker_code, speaker_role,
          target_child_id, gloss, target_child_age, 
          utt_id, max_topic)
 
 childes_htmm_hmm <- cbind(childes_htmm_hmm, childes_reconstruction)
 
+childes_htmm_hmm <- childes_htmm_hmm %>%
+  filter(max_topic != 0)
+
+write_csv(childes_htmm_hmm, here("data/childes_htmm_hmm.csv"))
 ```
