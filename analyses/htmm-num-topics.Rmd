@@ -1,0 +1,212 @@
+---
+title: "htmm-num-topics"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(here)
+library(feather)
+library(tidyverse)
+library(tidyboot)
+library(purrr)
+library(gsl)
+library(DT)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+```
+
+```{r read-data}
+childes_htmm <- read_feather(here("data/childes_htmm.feather"))
+dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
+```
+
+
+```{r read-phi-files}
+# analyze htmm phi data
+
+word_freqs <- table(unlist(strsplit(tolower(childes_htmm$gloss), " ")))
+
+read_phi_vals <- function(filename) {
+  cols = as.character(c(1:num_words))
+  phi_vals <- read_tsv(paste0(filepath,filename), col_names = cols, skip = 1)
+  phi_vals$topic = seq.int(nrow(phi_vals))
+  phi_vals <- phi_vals %>% select(topic, everything()) %>%
+    pivot_longer(cols = cols, names_to = "word_id", values_to = "phi") %>%
+    mutate(word = dict[match(word_id,dict$id),]$word,
+           model = filename)
+  
+  return(phi_vals)
+}
+
+filepath <- here("data/childes_htmm/")
+filenames <- list.files(path=here("data/childes_htmm"),
+                        pattern=".*phi", full.names = FALSE)
+num_words = 46515
+
+phi_vals <- do.call(rbind,lapply(filenames,read_phi_vals))
+
+phi_vals %>% arrange(desc(phi_dev)) %>% View()
+
+phi_vals %>% filter(word == "gack") %>% View()
+
+avg_topic <- phi_vals %>%
+  group_by(word, word_id) %>%
+  summarise(avg_phi = mean(phi))
+
+
+phi_vals <- phi_vals %>%
+  left_join(avg_topic) %>%
+  mutate(phi_dev = phi/avg_phi,
+         model = gsub("[^0-9]", "", model))
+
+write_csv(phi_vals, here("data/phi_vals_all_models.csv"))
+```
+
+```{r datatables}
+
+phi_vals %>%
+  filter(model == "05") %>%
+  group_by(topic) %>%
+  arrange(desc(phi_dev)) %>%
+  filter(word_freqs[word] > 100) %>%
+  slice(1:20) %>%
+  mutate(num = 1:20) %>%
+  ungroup() %>%
+  select(topic, num, word) %>%
+  pivot_wider(names_from = topic, values_from = word) %>%
+  datatable()
+
+phi_vals %>%
+  filter(model == "10") %>%
+  group_by(topic) %>%
+  arrange(desc(phi_dev)) %>%
+  slice(1:20) %>%
+  mutate(num = 1:20) %>%
+  ungroup() %>%
+  select(topic, num, word) %>%
+  pivot_wider(names_from = topic, values_from = word) %>%
+  datatable()
+
+phi_vals %>%
+  filter(model == "15") %>%
+  group_by(topic) %>%
+  arrange(desc(phi_dev)) %>%
+  slice(1:20) %>%
+  mutate(num = 1:20) %>%
+  ungroup() %>%
+  select(topic, num, word) %>%
+  pivot_wider(names_from = topic, values_from = word) %>%
+  datatable()
+
+phi_vals %>%
+  filter(model == "20") %>%
+  group_by(topic) %>%
+  arrange(desc(phi_dev)) %>%
+  slice(1:20) %>%
+  mutate(num = 1:20) %>%
+  ungroup() %>%
+  select(topic, num, word) %>%
+  pivot_wider(names_from = topic, values_from = word) %>%
+  datatable()
+
+phi_vals %>%
+  filter(model == "25") %>%
+  group_by(topic) %>%
+  arrange(desc(phi_dev)) %>%
+  slice(1:20) %>%
+  mutate(num = 1:20) %>%
+  ungroup() %>%
+  select(topic, num, word) %>%
+  pivot_wider(names_from = topic, values_from = word) %>%
+  datatable()
+
+phi_vals %>%
+  filter(model == "30") %>%
+  group_by(topic) %>%
+  arrange(desc(phi_dev)) %>%
+  slice(1:20) %>%
+  mutate(num = 1:20) %>%
+  ungroup() %>%
+  select(topic, num, word) %>%
+  pivot_wider(names_from = topic, values_from = word) %>%
+  datatable()
+```
+
+
+```{r read-pdwz}
+
+filepath <- here("data/childes_htmm/")
+
+make_col_names <- function(num_topics, half = FALSE, star = FALSE) {
+  topic_nums <- c(1:num_topics)
+  topics_plain <- paste0("topic_", topic_nums)
+  topics_star <- paste0("topic_", topic_nums, "_*")
+  if (half){
+    if (star) {return(topics_star)}
+    return(topics_plain)
+  }
+  return(append(topics_plain, topics_star))
+}
+
+read_pdwz_vals <- function(filename, just_max = TRUE, get_ids = FALSE) {
+  num_topics <- as.numeric(gsub("\\..*","", gsub(".*_","",filename)))
+  cols = make_col_names(num_topics)
+  topics = make_col_names(num_topics, half = TRUE)
+  #topics_star = make_col_names(num_topics, half = TRUE, star = TRUE)
+  
+  pdwz_vals <- read_tsv(paste0(filepath,filename), col_names = cols) %>%
+    select(all_of(topics)) %>%
+    mutate(doc_id = if_else(str_detect(topic_1, "d ="), 
+                            as.numeric(str_remove(topic_1, "d = ")), NA_real_),
+           utt_id = if_else(str_detect(topic_1, "i ="), 
+                            as.numeric(str_remove(topic_1, "i = ")), NA_real_),
+           utt_id = if_else(is.na(utt_id), lag(utt_id), utt_id)) %>%
+    #mutate_at(topics_star,  funs(gsub("[*]", "", .))) %>%
+    fill(doc_id) %>%
+    filter(!str_detect(topic_1, "=")) %>%
+    mutate(doc_id = doc_id + 1, utt_id = utt_id + 1) %>%
+    mutate_all(as.numeric)
+  
+  pdwz_vals$max_topic <- apply(pdwz_vals %>% select(topics), 1, which.max)
+  pdwz_vals$max_topic_prob <- apply(pdwz_vals %>% select(topics), 1, max)
+  
+  if (get_ids) {
+    return(pdwz_vals %>% select(doc_id, utt_id))
+  }
+  if (just_max) {
+    pdwz_vals_select <- pdwz_vals %>% select(max_topic, max_topic_prob)
+    colnames(pdwz_vals_select) <- paste0(colnames(pdwz_vals_select), "_", num_topics)
+    return(pdwz_vals_select)
+  }
+  pdwz_vals$num_topics <- num_topics
+  return(pdwz_vals)
+}
+
+filenames <- list.files(path=here("data/childes_htmm"),
+                        pattern=".*pdwz", full.names = FALSE)
+pdwz_all <- do.call(cbind,lapply(filenames,read_pdwz_vals))
+ids <- read_pdwz_vals(filenames[1], get_ids = TRUE)
+pdwz_all <- cbind(pdwz_all, ids)
+
+
+childes_htmm_pdwz <- childes_htmm %>%
+  select(id, speaker_id, utterance_order, transcript_id, corpus_id, gloss,
+         num_tokens, stem, part_of_speech, speaker_code, speaker_name,
+         speaker_role, target_child_id, target_child_age, target_child_name,
+         target_child_sex, type, collection_id, collection_name, num_morphemes,
+         language, corpus_name, utt_parse) %>%
+  group_by(transcript_id) %>%
+  mutate(doc_id = group_indices(),
+         utt_id = row_number(transcript_id)) %>%
+  ungroup() %>%
+  left_join(pdwz_all, by = c("doc_id", "utt_id"))
+
+
+#write_feather(childes_htmm_pdwz, here("data/childes_htmm_all_models.feather"))
+  
+#write_csv(phi_vals, here("data/childes_phi_vals_25.csv"))
+#write_csv(pdwz_vals, here("data/childes_pdwz_vals_25.csv"))
+```

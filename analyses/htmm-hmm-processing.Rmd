@@ -170,7 +170,7 @@ for (i in 1:n_distinct(childes_print$g)) {
 dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
 num_words = 46515
 cols = as.character(c(1:num_words))
-phi_vals <- read_tsv(here("data/childes_gloss_25.phi"), col_names = cols)
+phi_vals <- read_tsv(here("data/childes_gloss_25.phi"), col_names = cols, skip = 1)
 phi_vals$topic = seq.int(nrow(phi_vals))
 phi_vals <- phi_vals %>% select(topic, everything()) %>%
   pivot_longer(cols = cols, names_to = "word_id", values_to = "phi") %>%
@@ -222,6 +222,66 @@ pdwz_vals$max_topic_star <- apply(pdwz_vals %>% select(topics_star), 1, which.ma
 pdwz_vals$max_topic_star_prob <- apply(pdwz_vals %>% select(topics_star), 1, max)
 
 ```
+
+
+```{r analyze-htmm}
+# analyze htmm data
+dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
+num_words = 46515
+cols = as.character(c(1:num_words))
+phi_vals <- read_tsv(here("data/childes_gloss_25.phi"), col_names = cols, skip = 1)
+phi_vals$topic = seq.int(nrow(phi_vals))
+phi_vals <- phi_vals %>% select(topic, everything()) %>%
+  pivot_longer(cols = cols, names_to = "word_id", values_to = "phi") %>%
+  mutate(word = dict[match(word_id,dict$id),]$word)
+
+avg_topic <- phi_vals %>%
+  group_by(word, word_id) %>%
+  summarise(avg_phi = mean(phi))
+
+
+phi_vals <- phi_vals %>%
+  left_join(avg_topic) %>%
+  mutate(phi_dev = phi - avg_phi)
+
+
+phi_vals %>%
+  group_by(topic) %>%
+  arrange(desc(phi_dev)) %>%
+  View()
+  slice(1:20) %>%
+  mutate(num = 1:20) %>%
+  ungroup() %>%
+  select(topic, num, word) %>%
+  pivot_wider(names_from = topic, values_from = word) %>%
+  View()
+
+pdwz_vals_t <- read_tsv(here("data/childes_gloss_25.pdwz"))
+
+topics = c(1:25) 
+topics = sapply(topics, toString)
+topics = paste0("topic_", topics)
+topics_star = paste0(topics, "_*")
+
+pdwz_vals <- pdwz_vals_t %>%
+  mutate(doc_id = if_else(str_detect(topic_1, "d ="), 
+                          as.numeric(str_remove(topic_1, "d = ")), NA_real_),
+         utt_id = if_else(str_detect(topic_1, "i ="), 
+                          as.numeric(str_remove(topic_1, "i = ")), NA_real_),
+         utt_id = if_else(is.na(utt_id), lag(utt_id), utt_id)) %>%
+  mutate_at(topics_star,  funs(gsub("[*]", "", .))) %>%
+  fill(doc_id) %>%
+  filter(!str_detect(topic_1, "=")) %>%
+  mutate(doc_id = doc_id + 1, utt_id = utt_id + 1) %>%
+  mutate_all(as.numeric)
+
+pdwz_vals$max_topic <- apply(pdwz_vals %>% select(topics), 1, which.max)
+pdwz_vals$max_topic_prob <- apply(pdwz_vals %>% select(topics), 1, max)
+pdwz_vals$max_topic_star <- apply(pdwz_vals %>% select(topics_star), 1, which.max)
+pdwz_vals$max_topic_star_prob <- apply(pdwz_vals %>% select(topics_star), 1, max)
+
+```
+
 
 
 ```{r merge-pdwz}
