@@ -1,0 +1,48 @@
+---
+title: "varying n topics"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(here)
+library(feather)
+library(tidyverse)
+library(tidyboot)
+library(purrr)
+library(gsl)
+library(DT)
+library(reshape)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+```
+
+```{r read-data}
+childes_htmm_pdwz <- read_feather(here("data/childes_htmm_all_models"))
+dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
+```
+
+```{r entropy-of-topics}
+childes_htmm_pdwz <- childes_htmm_pdwz %>% 
+  rename(max_topic_prob_05 = max_topic_prob_5,
+                             max_topic_05 = max_topic_5)
+
+n_topics <- c("05","10","15","20","25","30")
+models <- paste0("max_topic_", n_topics)
+
+childes_htmm_pdwz %>%
+  select(contains("max_topic"),-contains("prob")) %>%
+  pivot_longer(everything(), names_to = "num_topics", 
+               names_prefix = "max_topic_", 
+               values_to = "max_topic") %>%
+  mutate(max_topic = as.numeric(max_topic),
+         num_topics = as.numeric(num_topics)) %>%
+  ggplot(aes(x = max_topic)) +
+  geom_histogram(binwidth = 1) +
+  facet_wrap(~num_topics, scales = "free")
+
+
+
+```
