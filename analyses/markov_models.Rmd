@@ -1,5 +1,5 @@
 ---
-title: "htmm_analysis"
+title: "markov-models"
 output: html_document
 ---
 
@@ -15,6 +15,7 @@ library(tidyboot)
 library(purrr)
 library(DT)
 library(markovchain)
+library(reshape)
 
 opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
                error = FALSE, cache = TRUE, tidy = FALSE)
@@ -22,94 +23,8 @@ opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
 
 ```{r read-data}
 childes_htmm <- read_feather(here("data/childes_htmm_25.feather"))
-phi_vals <- read_csv(here("data/childes_25_phi_vals.csv"))
 childes_dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
 childes_htmm_hmm <- read_csv(here("data/childes_htmm_hmm.csv"))
-```
-
-```{r analysis}
-
-phi_wide <- phi_vals %>% 
-  group_by(topic) %>%
-  arrange(desc(phi_dev)) %>%
-  slice(1:20) %>%
-  mutate(num = 1:20) %>%
-  ungroup() %>%
-  select(topic, num, word) %>%
-  pivot_wider(names_from = topic, values_from = word) 
-
-datatable(phi_wide %>% select(-num))
-
-childes_htmm %>%
-  filter(speaker_code == "CHI" | speaker_code == "MOT") %>%
-  ggplot(aes(max_topic)) +
-  geom_histogram(binwidth = 1) +
-  facet_wrap(~speaker_code)
-
-childes_htmm %>%
-  filter(speaker_code == "CHI" | speaker_code == "MOT") %>%
-  mutate(age_in_months = floor(target_child_age)) %>%
-  ggplot(aes(x = age_in_months, fill = as.factor(max_topic))) +
-  geom_bar(position = "fill") +
-  facet_wrap(~speaker_code) +
-  theme_classic() 
-
-childes_htmm %>%
-  filter(speaker_code == "CHI" | speaker_code == "MOT",
-         target_child_id == 4304) %>%
-  select(speaker_code, gloss, target_child_age, utt_parse, max_topic) %>%
-  datatable()
-
-```
-
-
-```{r hmm}
-childes_htmm_hmm %>%
-  dplyr::filter(speaker_code == "CHI" | speaker_code == "MOT") %>%
-  ggplot(aes(x = reconstruction)) +
-  geom_histogram(binwidth = 1) +
-  facet_wrap(~speaker_code)
-
-childes_htmm_hmm %>%
-  dplyr::filter(speaker_code == "CHI" | speaker_code == "MOT") %>%
-  mutate(age_in_months = floor(target_child_age)) %>%
-  ggplot(aes(x = age_in_months, fill = as.factor(reconstruction))) +
-  geom_bar(position = "fill") +
-  facet_wrap(~speaker_code) +
-  theme_classic() 
-
-childes_htmm_hmm %>%
-  group_by(reconstruction) %>%
-  sample_n(30) %>% 
-  select(reconstruction, gloss) %>%
-  datatable()
-
-childes_htmm_hmm %>%
-  group_by(max_topic) %>%
-  sample_n(30) %>% 
-  select(max_topic, gloss) %>%
-  datatable()
-
-childes_htmm_hmm <- childes_htmm_hmm %>%
-  mutate(lead_state = lead(reconstruction), lead_topic = lead(max_topic))
-
-childes_htmm_hmm %>%
-  filter(lead_state != reconstruction) %>%
-  ggplot(aes(lead_state)) +
-  geom_histogram(binwidth = 1) +
-  facet_wrap(~reconstruction)
-
-childes_htmm_hmm %>%
-  filter(lead_topic != max_topic) %>%
-  ggplot(aes(lead_topic)) +
-  geom_histogram(binwidth = 1) +
-  facet_wrap(~max_topic)
-
-childes_htmm_hmm %>%
-  filter(reconstruction)
-  ggplot(aes(max_topic)) +
-  geom_histogram(binwidth = 1) +
-  facet_wrap(~reconstruction)
 ```
 
 ```{r markovmodel}
@@ -126,7 +41,7 @@ hmm_mm <- markovchainFit(seq$reconstruction)
 hmm_tmatrix <- as.data.frame(hmm_mm$estimate@transitionMatrix)
 ```
 
-```{r heatmap}
+```{r heatmap-htmm}
 
 htmm_matrix_long <- htmm_tmatrix %>% rownames_to_column() %>%
   melt() %>%
@@ -135,6 +50,11 @@ htmm_matrix_long <- htmm_tmatrix %>% rownames_to_column() %>%
 htmm_matrix_long %>%
   ggplot(aes(x=current_state, y=next_state, fill=value)) + 
   geom_tile()
+```
+
+Transition matrix heatmap of HTMM max likelihood utterance topics among 3 y/os.
+
+```{r heatmap-hmm}
 
 hmm_matrix_long <- hmm_tmatrix %>% rownames_to_column() %>%
   melt() %>%
@@ -146,6 +66,7 @@ hmm_matrix_long %>%
 
 ```
 
+Transition matrix heatmap of HMM utterance hidden states among 3 y/os.
 
 
 ```{r}
@@ -173,6 +94,8 @@ squished_htmm_matrix_long %>%
   geom_tile()
 ```
 
+Transition matrix heatmap of HTMM max likelihood utterance topics among 3 y/os after repeated topics produced by the same person are squished.
+
 
 ```{r}
 childes_htmm <- childes_htmm %>%
@@ -195,15 +118,59 @@ squished_all_mm <- markovchainFit(squished_seq_all$max_topic)
 squished_all_tmatrix <- as.data.frame(squished_all_mm$estimate@transitionMatrix)
 
 all_tmatrix %>% rownames_to_column() %>%
-  melt() %>%
+  reshape::melt() %>%
   dplyr::rename(current_state = rowname, next_state = variable) %>%
   ggplot(aes(x=current_state, y=next_state, fill=value)) + 
   geom_tile()
 
+```
+
+Transition matrix heatmap of HTMM max likelihood utterance topics in all of CHILDES.
+
+```{r squished-all}
+
 squished_all_tmatrix %>% rownames_to_column() %>%
-  melt() %>%
+  reshape::melt() %>%
   dplyr::rename(current_state = rowname, next_state = variable) %>%
   ggplot(aes(x=current_state, y=next_state, fill=value)) + 
   geom_tile()
+
+```
+
+Transition matrix heatmap of HTMM max likelihood utterance topics in all of CHILDES after repeated topics produced by the same person are squished.
+
+```{r squished_all_hist}
+seq_all %>%
+  ggplot() +
+  geom_histogram(aes(x = lead_max_topic, binwidth = 1)) +
+  facet_wrap(~max_topic)
+
+squished_seq_all %>%
+  ggplot() +
+  geom_histogram(aes(x = lead_max_topic, binwidth = 1)) +
+  facet_wrap(~max_topic)
+```
+
+```{r zeroed}
+
+zero <- squished_seq_all %>%
+  filter(lead_max_topic != max_topic) %>%
+  mutate(lead_max_topic = lead(max_topic)) %>%
+  filter(lead_max_topic != max_topic)
+zero_mm <- markovchainFit(zero$max_topic)
+zero_tmatrix <- as.data.frame(zero_mm$estimate@transitionMatrix)
+
+
+zero_tmatrix %>% rownames_to_column() %>%
+  reshape::melt() %>%
+  dplyr::rename(current_state = rowname, next_state = variable) %>%
+  ggplot(aes(x=current_state, y=next_state, fill=value)) + 
+  geom_tile()
+
+zero_hmm <- childes_htmm_hmm %>%
+  mutate(lead_state = lead(reconstruction)) %>%
+  filter(lead_state != reconstruction)
+
+zero_hmm_mm <- markovchainFit(zero_hmm$reconstruction)
 
 ```

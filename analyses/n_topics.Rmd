@@ -1,0 +1,115 @@
+---
+title: "varying n topics"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(here)
+library(feather)
+library(tidyverse)
+library(tidyboot)
+library(purrr)
+library(gsl)
+library(DT)
+library(reshape)
+library(markovchain)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+```
+
+```{r read-data}
+childes_htmm_pdwz <- read_feather(here("data/childes_htmm_all_models"))
+dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
+```
+
+```{r distribution-of-topics}
+childes_htmm_pdwz <- childes_htmm_pdwz %>% 
+  dplyr::rename(max_topic_prob_05 = max_topic_prob_5,
+                             max_topic_05 = max_topic_5)
+
+n_topics <- c("05","10","15","20","25","30")
+models <- paste0("max_topic_", n_topics)
+
+childes_htmm_pdwz %>%
+  select(contains("max_topic"),-contains("prob")) %>%
+  pivot_longer(everything(), names_to = "num_topics", 
+               names_prefix = "max_topic_", 
+               values_to = "max_topic") %>%
+  mutate(max_topic = as.numeric(max_topic),
+         num_topics = as.numeric(num_topics)) %>%
+  ggplot(aes(x = max_topic)) +
+  geom_histogram(binwidth = 1) +
+  facet_wrap(~num_topics, scales = "free")
+
+```
+
+Distribution of topic occurrences in models with 5, 10, ..., 30 topics.
+
+```{r transition-matrices}
+
+reorder_cormat <- function(cormat){
+  dd <- as.dist((1-cormat)/2)
+  hc <- hclust(dd)
+  cormat <-cormat[hc$order, hc$order]
+}
+
+get_markov_chain <- function(model_n, reorder = FALSE) {
+  model <- markovchainFit(childes_htmm_pdwz %>% select(model_n) %>% c(.)) 
+  tmatrix <- model$estimate@transitionMatrix
+  if (reorder) {tmatrix = reorder_cormat(tmatrix)}
+  tmatrix <- as.data.frame(tmatrix)
+  long_matrix <- tmatrix %>% rownames_to_column() %>%
+    dplyr::rename(current_state = rowname) %>%
+    mutate(current_state = factor(current_state, levels = current_state)) %>%
+    pivot_longer(cols = -current_state, names_to = "next_state", 
+                 values_to = "value") %>%
+    mutate(next_state = factor(next_state, levels = levels(current_state))) %>%
+    mutate(n_topics = model_n)
+  return(long_matrix)
+}
+
+markov_models <- map_df(models, ~get_markov_chain(.x))
+markov_models_reordered <- map_df(models, ~get_markov_chain(.x, TRUE))
+
+markov_models %>% rownames_to_column() %>%
+  mutate(current_state = as.numeric(as.character(current_state)),
+         next_state = as.numeric(as.character(next_state))) %>%
+  ggplot(aes(x=current_state, y=next_state, fill=value)) + 
+  geom_tile() +
+  facet_wrap(~n_topics, scales = "free")
+```
+
+Transition heatmap between topics for all models.
+
+```{r reordered_matrix}
+markov_models_reordered %>% rownames_to_column() %>% 
+  ggplot(aes(x=current_state, y=next_state, fill=log(value))) + 
+  geom_tile() +
+  facet_wrap(~n_topics, scales = "free")
+```
+
+Transition heatmap showing log probabilities and reordered based on common transition patterns between topics.
+
+```{r prop-transitions}
+
+childes_htmm_pdwz %>%
+  select(-contains("prob")) %>%
+  pivot_longer(cols = contains("topic"), names_to = "n_topics", 
+               names_prefix = "max_topic_",
+               values_to = "topic") %>%
+  group_by(n_topics) %>%
+  arrange(doc_id, utt_id, .by_group = TRUE) %>% 
+  mutate(lead_topic = lead(topic),
+         lag_topic = lag(topic),
+         n_topics = as.numeric(n_topics)) %>%
+  filter(topic != lead_topic) %>%
+  group_by(n_topics) %>%
+  summarise(n_other_transitions = n()) %>% 
+  ungroup() %>%
+  ggplot(aes(x = n_topics, y = n_other_transitions)) +
+  geom_point() 
+
+```
