@@ -20,7 +20,7 @@ use_condaenv("r-reticulate")
 ```
 
 ```{r read_feather}
-switchboard <- read_feather(here("childlanguageinfo/switchboard (1).feather"))
+switchboard <- read_feather(here("switchboard (1).feather"))
 ```
 
 ```{r read_feather_childes}
@@ -169,8 +169,211 @@ par_child_entropies %>%
   geom_point() +
   geom_smooth(method = "lm") +
   facet_wrap(~is_random)
-<<<<<<< HEAD
+ HEAD
 ```
-=======
+
+```{r htmm prep}
+switchboard <- switchboard %>%
+  group_by(file) %>%
+  mutate(utterance_order = seq(0, n()-1)) %>%
+  ungroup()
+
+# create a dict of frame types
+frame_dict <- switchboard %>%
+  count(text) %>%
+  arrange(desc(n)) %>%
+  filter(n > 1)
+
+frame_dict$id <- seq.int(nrow(frame_dict))
+
+last_utt <- switchboard %>%
+   group_by(text) %>%
+   summarise(utterance_order = max(utterance_order)) %>%
+   mutate(utterance_order = utterance_order + 1,
+          utt_parse = "X", frame_id = 0) 
+
+switchboard <- switchboard %>%
+  mutate(frame_id = frame_dict[match(text,frame_dict$utt_parse),]$id) %>%
+  arrange(file, utterance_order)
+bind_rows(last_utt)
+
+switchboard <- switchboard %>%
+  mutate(frame_id = if_else(is.na(frame_id), 10362L, frame_id))
+
+max <- switchboard %>% distinct(frame_id) %>% arrange(desc(frame_id))
+na <- switchboard %>% filter(is.na(frame_id))
+
+n_tokens = nrow(switchboard)
+n_types = switchboard %>% distinct(frame_id) %>% nrow()
+
+write.csv(switchboard$frame_id, here("data/switchboard.txt"),
+          row.names = FALSE)
 ```
->>>>>>> 6e237b590705fdecb5130d8bc7da830e9b09819b
+
+```{r make-htmm-file}
+
+make_dict <- function(corpus) {
+  dict <- corpus %>%
+    mutate(word = strsplit(as.character(text), " ")) %>% 
+    unnest(word) %>%
+    distinct(word) %>%
+    as_tibble(t(.))
+  dict$id <- seq.int(nrow(dict))
+  return(dict)
+}
+
+
+get_word_ids <- function(utterance) {
+  words <- str_split(utterance, " ")
+  id_sequence <- dict[match(words[[1]], dict$word),]$id %>%
+    paste(sep = " ", collapse = " ") 
+  return(id_sequence)
+}
+get_word_ids_v <- Vectorize(get_word_ids)
+
+get_word_codes <- function(corpus) {
+  corpus_coded <- corpus %>%
+    mutate(word_ids = get_word_ids_v(text),
+           sentence_length = str_count(word_ids, '\\w+')) %>%
+    select(file, sentence_length, word_ids) %>%
+    group_by(file) %>%
+    mutate(g = group_indices()) %>%
+    ungroup()
+  return(corpus_coded)
+}
+
+dict <- make_dict(switchboard)
+
+switchboard_print <- get_word_codes(switchboard)
+
+
+for (i in 1:n_distinct(switchboard_print$g)) {
+  transcript <- switchboard_print %>% filter(g == i) %>%
+    select(!c(g, file))
+  filename = paste0(here("data/switchboard_gloss/switchboard_gloss_for_htmm_"), i)
+   write.table(transcript, filename, 
+             append = FALSE, quote = FALSE, sep = " ", dec = " ",
+             row.names = FALSE, col.names = FALSE)
+}
+
+for (i in 1:n_distinct(switchboard_print$g)) {
+  text = paste0("switchboard_gloss_for_htmm_", i)
+  write(text, here("data/switchboard_gloss_doc_names"), append = TRUE)
+}
+
+write.csv(dict, here("data/switchboard_gloss_word_dict.csv"))
+
+```
+
+```{r analyze-htmm}
+# analyze htmm data
+dict <- read_csv(here("data/switchboard_gloss_word_dict.csv"))
+num_words = 29871
+cols = as.character(c(1:num_words))
+phi_vals <- read_tsv(here("data/switchboard_gloss_15.phi"), col_names = cols)
+phi_vals$topic = seq.int(nrow(phi_vals))
+phi_vals <- phi_vals %>% select(topic, everything()) %>%
+  pivot_longer(cols = cols, names_to = "word_id", values_to = "phi") %>%
+  mutate(word = dict[match(word_id,dict$id),]$word)
+
+avg_topic <- phi_vals %>%
+  group_by(word, word_id) %>%
+  summarise(avg_phi = mean(phi))
+
+
+phi_vals <- phi_vals %>%
+  left_join(avg_topic) %>%
+  mutate(phi_dev = phi - avg_phi)
+
+
+phi_vals %>%
+  group_by(topic) %>%
+  arrange(desc(phi_dev)) %>%
+  View()
+  slice(1:20) %>%
+  mutate(num = 1:20) %>%
+  ungroup() %>%
+  select(topic, num, word) %>%
+  pivot_wider(names_from = topic, values_from = word) %>%
+  View()
+
+pdwz_vals_t <- read_tsv(here("data/childes_gloss_15.pdwz"))
+
+topics = c(1:15) 
+topics = sapply(topics, toString)
+topics = paste0("topic_", topics)
+topics_star = paste0(topics, "_*")
+
+pdwz_vals <- pdwz_vals_t %>%
+  mutate(doc_id = if_else(str_detect(topic_1, "d ="), 
+                          as.numeric(str_remove(topic_1, "d = ")), NA_real_),
+         utt_id = if_else(str_detect(topic_1, "i ="), 
+                          as.numeric(str_remove(topic_1, "i = ")), NA_real_),
+         utt_id = if_else(is.na(utt_id), lag(utt_id), utt_id)) %>%
+  mutate_at(topics_star,  funs(gsub("[*]", "", .))) %>%
+  fill(doc_id) %>%
+  filter(!str_detect(topic_1, "=")) %>%
+  mutate(doc_id = doc_id + 1, utt_id = utt_id + 1) %>%
+  mutate_all(as.numeric)
+
+pdwz_vals$max_topic <- apply(pdwz_vals %>% select(topics), 1, which.max)
+pdwz_vals$max_topic_prob <- apply(pdwz_vals %>% select(topics), 1, max)
+pdwz_vals$max_topic_star <- apply(pdwz_vals %>% select(topics_star), 1, which.max)
+pdwz_vals$max_topic_star_prob <- apply(pdwz_vals %>% select(topics_star), 1, max)
+
+```
+
+
+```{r merge-pdwz}
+childes_htmm <- framed_childes %>%
+  group_by(transcript_id) %>%
+  mutate(doc_id = group_indices(),
+         utt_id = row_number(transcript_id)) %>%
+  ungroup() %>%
+  left_join(pdwz_vals, by = c("doc_id", "utt_id"))
+
+#write_feather(childes_htmm, here("data/childes_htmm_25.feather"))
+#write_csv(phi_vals, here("data/childes_phi_vals_25.csv"))
+#write_csv(pdwz_vals, here("data/childes_pdwz_vals_25.csv"))
+```
+
+```{r hmm-from-htmm}
+childes_htmm_select <- childes_htmm %>%
+  filter(target_child_age > 36, target_child_age < 48) 
+  
+childes_htmm_select %>%
+  distinct(max_topic) %>%
+  arrange(desc(max_topic)) %>% View()
+
+last_utt <- childes_htmm_select %>%
+   group_by(transcript_id) %>%
+   summarise(utterance_order = max(utterance_order)) %>%
+   mutate(utterance_order = utterance_order + 1,
+          max_topic = 0) 
+
+childes_htmm_select <- childes_htmm_select %>%
+  bind_rows(last_utt) %>%
+  arrange(transcript_id, utterance_order) 
+  
+max <- childes_htmm_select %>% distinct(max_topic) %>% arrange(desc(max_topic))
+na <- childes_htmm_select %>% filter(is.na(max_topic))
+
+n_tokens = nrow(childes_htmm_select)
+n_types = childes_htmm_select %>% distinct(max_topic) %>% nrow()
+
+#write.csv(childes_htmm_select$max_topic, here("data/childes_topics_for_hmm.txt"),
+#          row.names = FALSE)
+
+```
+
+```{r read-hmm}
+childes_reconstruction <- read.csv(here("data/childes_25_reconstruction.csv"))
+
+childes_htmm_hmm <- childes_htmm %>%
+  select(transcript_id, utterance_order, speaker_code, speaker_role,
+         target_child_id, gloss, target_child_age, 
+         utt_id, max_topic)
+
+childes_htmm_hmm <- cbind(childes_htmm_hmm, childes_reconstruction)
+
+```
