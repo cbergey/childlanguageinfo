@@ -36,11 +36,11 @@ childes_htmm_pdwz <- childes_htmm_pdwz %>%
                                 "CHI", speaker_code))
 
 topic_count_vector <- childes_htmm_pdwz %>%
-  group_by(max_topic_15, transcript_id, age_in_months, speaker_code) %>%
+  group_by(max_topic_15, transcript_id, age_in_months, speaker_role) %>%
   count() %>% ungroup()
 
 counts <- topic_count_vector %>%
-  mutate(name = paste0(transcript_id, speaker_code)) 
+  mutate(name = paste0(transcript_id, speaker_role)) 
 
 counts <- split(counts$n, counts$name)
 
@@ -65,23 +65,22 @@ topic_entropies <- py$entropies_dict %>%
   mutate(name = str_remove(name, "X"))
 
 topic_entropy <- topic_count_vector %>% 
-  mutate(name = paste0(transcript_id, speaker_code)) %>%
+  mutate(name = paste0(transcript_id, speaker_role)) %>%
   left_join(topic_entropies, by = "name")
 
 par_child_entropies <- topic_entropy %>%
-  group_by(transcript_id, speaker_code) %>%
+  group_by(transcript_id, speaker_role) %>%
   summarise(entropy = first(entropy), age = first(age_in_months)) %>%
-  group_by(age, speaker_code) %>%
+  group_by(age, speaker_role) %>%
   mutate(entropy_random = entropy[sample(row_number())]) %>%
   ungroup()
 
 ```
 
 ```{r graph_entropies_over_age}
-topic_entropy %>%
-  filter(speaker_code == "CHI" | speaker_code == "MOT" | speaker_code == "FAT") %>%
-  ggplot(aes(age_in_months, entropy, color = speaker_code)) +
-  geom_point(alpha = 0.08) +
+par_child_entropies %>%
+  ggplot(aes(age, entropy, color = speaker_role)) +
+  geom_point(alpha = 0.2) +
   geom_smooth() +
   ylab("Entropy") +
   xlab("Age") +
@@ -95,7 +94,7 @@ Mother and child topic entropies over age.
 par_child_entropies %>%
   pivot_longer(cols = c(entropy, entropy_random), names_to = "is_random", 
                values_to = "entropy") %>%
-  pivot_wider(values_from = entropy, names_from = speaker_code) %>%
+  pivot_wider(values_from = entropy, names_from = speaker_role) %>%
   ggplot(aes(x = MOT, y = CHI, color = age)) +
   geom_point() +
   geom_smooth(method = "lm") +
@@ -119,10 +118,10 @@ CHILDES has some codes for type of utterance that are really coarse-grained--dec
 
 ```{r branching-out}
 childes_htmm_pdwz %>%
-  dplyr::filter(speaker_code == "CHI" | speaker_code == "MOT") %>%
+  filter(speaker_role == "Mother" | speaker_role == "Target_Child") %>%
   ggplot(aes(x = age_in_months, fill = as.factor(max_topic_15))) +
   geom_bar(position = "fill") +
-  facet_wrap(~speaker_code) +
+  facet_wrap(~speaker_role) +
   theme_classic() 
 ```
 
@@ -202,6 +201,16 @@ trigram_n <- childes_htmm_pdwz %>%
   group_by(age_in_months, trigram) %>%
   summarise(n= n()) 
 
+trigram_n %>%
+  ggplot(aes(x = trigram, y = n)) +
+  geom_histogram()
+
+topic_count_vector %>%
+  filter(speaker_code == "CHI" | speaker_code == "MOT" | speaker_code == "FAT") %>%
+  mutate(age_bin = cut(age_in_months, breaks = 10)) %>%
+  ggplot(aes(x = max_topic_15)) +
+  geom_histogram(binwidth = 1) +
+  facet_grid(speaker_code~age_bin, scale = "free")
 ```
 
 
