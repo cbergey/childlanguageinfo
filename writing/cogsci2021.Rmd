@@ -57,9 +57,13 @@ dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
 
 
 
-Words are amenable to storage, tabulation, and manipulation using common computational tools. Likely because of their ease of use, much modeling of language acquisition has analyzed at word level. 
+Words are amenable to storage, tabulation, and manipulation using common computational tools. Perhaps due to their ease of use, words have received outsize attention in modeling language development.  
 
-Here, we characterize children's growing repertoire of communicative acts by 
+Studying children's communicative acts using a computational model also allows us to extract communicative patterns across many children with less a priori specification of what those patterns are. Traditionally, studies of communicative acts among children have brought frameworks from adult communication, such as Speech Act theory [@austin_how_1962, @searle_speech_1969] and Conversation Analysis [@sacks_simplest_1974], to bear on children's conversations. While concepts like 'directive', 'expressive', 'accusation' and 'justification' can be useful to characterize children's conversations, young children may not have the same communicative needs as adults—these may not be the right joints at which to carve. 
+
+Here, we characterize children's growing repertoire of communicative acts using a Hidden Topic Markov Model. This model observes utterances produced by parents and children and attempts to infer common underlying processes—topics—that produced them.  
+
+We first show that without top-down specification, this model extracts several communicative acts analogous to those observed in close case studies of children's communication. We then show that use of these acts has a developmental trajectory in line with findings from close studies of children's communication. ...
 
 ## Corpus
 
@@ -167,6 +171,29 @@ plot2 <- childes_htmm_pdwz %>%
   theme_classic() 
 ```
 
+
+```{r snippet_table, results="asis", tab.env = "table"}
+
+tab2 <- childes_htmm_pdwz %>%
+  filter((transcript_id == 5657 & utterance_order %in% c(64:73)) |
+           (transcript_id == 6910 & utterance_order %in% c(4:13)) |
+           (transcript_id == 5772 & utterance_order %in% c(678:688)) )%>%
+  select(speaker_role, gloss, max_topic_15, age_in_months, transcript_id) %>%
+  group_by(age_in_months) %>% mutate(utterance_order = 1:n()) %>% ungroup() %>%
+  dplyr::rename(age = age_in_months, topic = max_topic_15) %>%
+  arrange(age, utterance_order) %>%
+  mutate(age = as.character(age)) %>%
+  select(age, speaker_role, topic, gloss) %>%
+  xtable()
+
+#transcript_id == 5655 & utterance_order %in% c(691:700)
+  #pivot_wider(names_from = age_in_months, values_from = c(speaker_role, gloss, max_topic_15)) %>% 
+  #select(contains("29"), contains("38"), contains("43")) 
+
+print(tab2, type = "latex", comment = F, table.placement = "tb", floating = TRUE,
+      floating.environment = "table*",
+      include.rownames = FALSE)
+```
 # References 
 
 ```{r}
