@@ -256,38 +256,38 @@ n_mlu_words_entropies <- n_mlu_topics %>%
   left_join(num_word_types %>% filter(speaker_role == "Target_Child"), by = c("transcript_id", "speaker_role",
                                                                          "age_in_months"))
 
-n_mlu_words_entropies %>%
-  filter(age_in_months >= 6) %>%
-  mutate(age = case_when(age_in_months < 12 ~ 6,
-                         age_in_months >= 12 & age_in_months < 18 ~ 12,
-                         age_in_months >= 18 & age_in_months < 24 ~ 18,
-                         age_in_months >= 24 & age_in_months < 30 ~ 24,
-                         age_in_months >= 30 & age_in_months < 36 ~ 30,
-                         age_in_months >= 36 & age_in_months < 42 ~ 36,
-                         age_in_months >= 42 & age_in_months < 48 ~ 42,
-                         age_in_months >= 48 & age_in_months < 54 ~ 48,
-                         age_in_months >= 54 & age_in_months <= 60 ~ 54)) %>%
-  ggplot(aes(x = n_topics, y = log(n_word_types))) +
-  geom_jitter(alpha = 0.5, size = 0.1)  +
-  facet_wrap(~age)
+# n_mlu_words_entropies %>%
+#   filter(age_in_months >= 6) %>%
+#   mutate(age = case_when(age_in_months < 12 ~ 6,
+#                          age_in_months >= 12 & age_in_months < 18 ~ 12,
+#                          age_in_months >= 18 & age_in_months < 24 ~ 18,
+#                          age_in_months >= 24 & age_in_months < 30 ~ 24,
+#                          age_in_months >= 30 & age_in_months < 36 ~ 30,
+#                          age_in_months >= 36 & age_in_months < 42 ~ 36,
+#                          age_in_months >= 42 & age_in_months < 48 ~ 42,
+#                          age_in_months >= 48 & age_in_months < 54 ~ 48,
+#                          age_in_months >= 54 & age_in_months <= 60 ~ 54)) %>%
+#   ggplot(aes(x = n_topics, y = log(n_word_types))) +
+#   geom_jitter(alpha = 0.5, size = 0.1)  +
+#   facet_wrap(~age)
 ```
 
 ```{r mlu_plot, fig.height = 3.4, fig.width=3.4, fig.align = "center", num.cols.cap=1, fig.cap = "The number of communicative act types children produced plotted against their mean length of utterance.", fig.pos="tb"}
 
-n_mlu_words_entropies %>%
-  filter(age_in_months >= 6) %>%
-  mutate(age = case_when(age_in_months < 12 ~ 6,
-                         age_in_months >= 12 & age_in_months < 18 ~ 12,
-                         age_in_months >= 18 & age_in_months < 24 ~ 18,
-                         age_in_months >= 24 & age_in_months < 30 ~ 24,
-                         age_in_months >= 30 & age_in_months < 36 ~ 30,
-                         age_in_months >= 36 & age_in_months < 42 ~ 36,
-                         age_in_months >= 42 & age_in_months < 48 ~ 42,
-                         age_in_months >= 48 & age_in_months < 54 ~ 48,
-                         age_in_months >= 54 & age_in_months <= 60 ~ 54)) %>%
-  ggplot(aes(x = n_topics, y = log(mlu))) +
-  geom_jitter(alpha = 0.5, size = 0.1) + 
-  facet_wrap(~age)
+# n_mlu_words_entropies %>%
+#   filter(age_in_months >= 6) %>%
+#   mutate(age = case_when(age_in_months < 12 ~ 6,
+#                          age_in_months >= 12 & age_in_months < 18 ~ 12,
+#                          age_in_months >= 18 & age_in_months < 24 ~ 18,
+#                          age_in_months >= 24 & age_in_months < 30 ~ 24,
+#                          age_in_months >= 30 & age_in_months < 36 ~ 30,
+#                          age_in_months >= 36 & age_in_months < 42 ~ 36,
+#                          age_in_months >= 42 & age_in_months < 48 ~ 42,
+#                          age_in_months >= 48 & age_in_months < 54 ~ 48,
+#                          age_in_months >= 54 & age_in_months <= 60 ~ 54)) %>%
+#   ggplot(aes(x = n_topics, y = log(mlu))) +
+#   geom_jitter(alpha = 0.5, size = 0.1) + 
+#   facet_wrap(~age)
 
 ```
 
@@ -295,7 +295,7 @@ n_mlu_words_entropies %>%
 par_child_entropies %>%
   filter(age >= 6) %>%
   ggplot(aes(age, entropy, color = speaker_role)) +
-  geom_point(alpha = 0.2) +
+  geom_jitter(alpha = 0.3, size = 0.1) +
   geom_smooth() +
   ylab("Entropy") +
   xlab("Age") +
@@ -306,13 +306,17 @@ par_child_entropies %>%
 
 ```{r branching_out_plot, fig.height = 3.4, fig.width=4.4, fig.align = "center", num.cols.cap=1, fig.cap = "Plot showing the distribution of topics produced by children and mothers across development.", fig.pos="tb"}
 
+
 childes_htmm_pdwz %>%
   filter(age_in_months >= 6, speaker_role == "Mother" | speaker_role == "Target_Child") %>%
-  ggplot(aes(x = age_in_months, fill = as.factor(max_topic_15), 
-             label = max_topic_15)) +
-  geom_bar(position = "fill") +
+  mutate(age_bin = cut(age_in_months, 20, labels = FALSE)) %>%
+  group_by(age_bin, speaker_role) %>%
+  count(max_topic_15) %>%
+  ggplot(aes(x = age_bin, y = n, group = max_topic_15, 
+             fill = as.factor(max_topic_15))) +
+  geom_area(position = "fill", color = "black") +
   facet_wrap(~speaker_role) +
-  theme_classic() + scale_fill_discrete(name = "topic")
+  theme_classic() 
 
 ```
 
