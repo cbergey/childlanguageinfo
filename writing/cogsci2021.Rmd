@@ -56,10 +56,10 @@ childes_htmm_phi <- read_csv(here("data/phi_vals_all_models.csv"))
 dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
 ```
 
-From their first utterances, children are not just producing language but *using* it to communicate. A child who can produce only one word at a time can nonetheless convey several communicative intentions: using variations in pitch, she can use the word *mama* to identify a person, question possession of an object, or to call for someone's presence [@dore_1975]. From 14 to 30 months of age, children quickly branch out from communicative acts like *requesting*, *protesting*, and *marking an event* to *agreeing to an action*, *stating intent*, and asking and answering a variety of questions [@snow_learning_1996]. Indeed, children can achieve communicative goals even before they can use language to do so: they can use gestures and vocalizations both to request a desired object and to call a person's attention to something in the environment [@bates_acquisition_1975].
+From their first utterances, children are not just producing language but *using* it to communicate. A child who can produce only one-word utterances can nonetheless convey several communicative intentions: using variations in pitch, she can use the word *mama* to identify a person, question possession of an object, or to call for someone's presence [@dore_1975]. From 14 to 30 months of age, children quickly branch out from communicative acts like *requesting*, *protesting*, and *marking an event* to *agreeing to an action*, *stating intent*, and asking and answering a variety of questions [@snow_learning_1996]. Close studies of children's conversations using nuanced 
 [...]
 
-Describing children's communicative acts computationally, however, is a challenging task. Without nuanced, context-sensitive human coding, communicative acts can be hard to identify. Words are amenable to identification, storage, and tabulation using common computational tools; perhaps due to their ease of use, models of language development have often taken their approach at the level of words (i.e., vocabulary learning). The goals and intentions underlying those words are less amenable to such manipulation. In this paper, we put forth one approach to modeling the children's communicative acts, working backwards from the words they produce: we model communicative acts as the latent sources from which words emerge, and characterize children's engagement in these acts across development.
+Describing children's communicative acts at a larger scale, however, is a challenging task. Without nuanced, context-sensitive human coding, communicative acts can be hard to identify. Words are amenable to identification, storage, and tabulation using common computational tools; perhaps due to their ease of use, models of language development have often taken their approach at the level of words (i.e., vocabulary learning). The goals and intentions underlying those words are less amenable to such manipulation. In this paper, we put forth one approach to modeling the children's communicative acts, working backwards from the words they produce: we model communicative acts as the latent sources from which words emerge, and characterize children's engagement in these acts across development.
 
 [...]
 
@@ -89,7 +89,7 @@ After training, the model produces a set of topics with associated probability d
 
 # Part 3: temporal dynamics
 
-topics <- c("knowledge and testimony", "labeling", "counting", "evaluation", "action planning",
+topics <- c("knowledge and testimony", "labeling", "counting", "evaluation", "action and location planning",
             "non-present events", "??", "requests and provision", "attending and questioning", 
             "location", "people's names and greetings", "backchannels and interjections",
             "description", "storytelling", "clothing routines")
@@ -121,7 +121,7 @@ The most distinctive words of each topic in our 15–topic model, as measured by
 
 One way to characterize the diversity of communicative acts a person engages in is to measure the entropy of their communicative acts. Overall, parents' communicative acts have higher entropy than children's. Children's communicative act entropy increases drastically over development between 6 and around 24 months, and remains relatively stable across the rest of our age range, as shown in \ref{fig:entropy_plot}. Our communicative acts are therefore capturing some capacity that becomes more adult-like across development. [more description / perhaps some stats]
 
-Beyond becoming more complex across development, the ability to engage in a variety of communicative acts might reasonably be expected to correlate with other measures of language ability. Indeed, @snow_learning_1996 find that the number of speech act types children use correlates highly with the number of word types they use, but does not consistently correlate with mean length of utterance (MLU). We replicate these findings here: children's number of communicative act types produced correlate with their word types produced (\ref{fig:word_types_plot}) and does not consistently correlate with MLU (\ref{fig:mlu_plot}).
+Beyond becoming more complex across development, the ability to engage in a variety of communicative acts might reasonably be expected to correlate with other measures of language ability. Indeed, @snow_learning_1996 find that the number of speech act types children use correlates highly with the number of word types they use, but does not consistently correlate with mean length of utterance (MLU). We replicate these findings here: children's number of communicative act types produced correlate with their word types produced (*stats*) and does not consistently correlate with MLU (*stats*).
 
 ```{r entropy-par-child}
 
@@ -305,7 +305,10 @@ par_child_entropies %>%
 ```
 
 ```{r branching_out_plot, fig.height = 3.4, fig.width=4.4, fig.align = "center", num.cols.cap=1, fig.cap = "Plot showing the distribution of topics produced by children and mothers across development.", fig.pos="tb"}
-
+topics <- c("knowledge and testimony", "labeling", "counting", "evaluation", "action and location planning",
+            "non-present events", "??", "requests and provision", "attending and questioning", 
+            "location", "people's names and greetings", "backchannels and interjections",
+            "description", "storytelling", "clothing routines")
 
 childes_htmm_pdwz %>%
   filter(age_in_months >= 6, speaker_role == "Mother" | speaker_role == "Target_Child") %>%
@@ -367,6 +370,10 @@ markov_models %>% rownames_to_column() %>%
 
 
 ```
+# Discussion
+
+In this paper, we present one approach to characterizing children's communicative acts on a large scale. In doing so, we gain the ability to examine the communication of more children in more contexts and across a wider age range than afforded by hand coding, and are able to examine patterns of usage that only become clear across such a wide range of data. We also lose nuance in the conversational context and non-verbal aspects of communication. Children can achieve communicative goals even before they can use language to do so: they can use gestures and vocalizations both to request a desired object and to call a person's attention to something in the environment [@bates_acquisition_1975]. Pointing alone can serve multiple functions, such as making action requests, informing, or asking for information [cite Liszkowski papers and Kovács papers]. Studies of children's one-word utterances demonstrate that they can use the same word to fulfill multiple communicative goals [@dore_1975], which are lumped together in our approach.
+
 # References 
 
 ```{r}
