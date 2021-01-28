@@ -46,6 +46,7 @@ library(feather)
 library(reticulate)
 library(markovchain)
 library(spgs)
+library(entropy)
 use_condaenv("r-reticulate")
 
 theme_set(theme_few())
@@ -55,6 +56,20 @@ theme_set(theme_few())
 childes_htmm_pdwz <- read_feather(here("data/childes_htmm_all_models")) 
 childes_htmm_phi <- read_csv(here("data/phi_vals_all_models.csv"))
 dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
+
+childes_keep <- childes_htmm_pdwz %>%
+  mutate(speaker_role = if_else(speaker_role == "Mother" | speaker_role == "Father",
+                                "Parent", speaker_role)) %>%
+  group_by(transcript_id, speaker_role) %>%
+  summarise(n = n()) %>%
+  ungroup() %>%
+  complete(speaker_role, transcript_id, fill = list(n = 0)) %>%
+  arrange(transcript_id) %>%
+  pivot_wider(names_from = "speaker_role", values_from = "n") %>%
+  filter(Parent > 10, Target_Child > 10)
+
+childes_htmm_pdwz <- childes_htmm_pdwz %>%
+  filter(transcript_id %in% childes_keep$transcript_id)
 ```
 
 From their first utterances, children are not just producing language but *using* it to communicate. A child who can produce only one-word utterances can nonetheless convey several communicative intentions: using variations in pitch, she can use the word *mama* to identify a person, question possession of an object, or to call for someone's presence [@dore_1975]. From 14 to 30 months of age, children quickly branch out from communicative acts like *requesting*, *protesting*, and *marking an event* to *agreeing to an action*, *stating intent*, and asking and answering a variety of questions [@snow_learning_1996]. These close studies of children's conversations, using rich observations to infer their likely intended meaning in context, show that much of the action of language acquisition happens at the level of what children *mean* to say.
@@ -108,7 +123,7 @@ print(tab, type = "latex", comment = F, table.placement = "t", floating = TRUE,
 
 ## Corpus
 
-We use transcripts of conversations from the Child Language Data Exchange System (CHILDES), a database of child conversation corpora [@macwhinney_childes_2000]. These corpora predominantly record spontaneous conversations between children and their family members, often in the home. We used transcripts from the North American English collection of CHILDES among children 6 months to 60 months old, and filtered these transcripts to include only utterances spoken by the target child or their parents. Overall, our training data included 4,043 transcripts from 411 children. 
+We use transcripts of conversations from the Child Language Data Exchange System (CHILDES), a database of child conversation corpora [@macwhinney_childes_2000]. These corpora predominantly record spontaneous conversations between children and their family members, often in the home. We used transcripts from the North American English collection of CHILDES among children 6 months to 60 months old, and filtered these transcripts to include only utterances spoken by the target child or their parents. Overall, our training data included XXX transcripts from XXX children. 
 
 ## Model
 
@@ -190,7 +205,7 @@ par_child_entropies <- topic_entropy %>%
 topics <- c("mental states", "labeling", "counting", "evaluation", "action planning",
             "non-present events", "??", "requests and provision", "attending and questioning", 
             "location", "people's names and greetings", "backchannels and interjections",
-            "description", "storytelling", "clothing routines")
+            "description", "storytelling", "body routines")
 
 childes_htmm_pdwz %>%
   filter(age_in_months >= 6) %>%
@@ -408,9 +423,77 @@ markov_models_reordered %>% rownames_to_column() %>%
   facet_wrap(~age_bin, scales = "free") +
   scale_fill_viridis_b()
   
+```
 
+```{r}
+KL <- childes_htmm_pdwz %>%
+  filter(target_child_age >= 6) %>%
+  mutate(speaker = if_else(speaker_role == "Mother" | speaker_role == "Father",
+                           "Parent", speaker_role)) %>%
+  group_by(speaker, transcript_id, max_topic_15) %>%
+  summarise(n = n()) %>% 
+  ungroup() %>%
+  complete(max_topic_15, speaker, transcript_id, fill = list(n = 0)) %>% 
+  pivot_wider(names_from = "speaker", values_from = "n") %>% 
+  arrange(transcript_id, max_topic_15) %>%
+  group_by(transcript_id) %>%
+  nest() %>% ungroup() %>% 
+  mutate(KL = map(data, ~KL.shrink(.x$Parent, .x$Target_Child))) %>%
+  select(-data) %>%
+  unnest(cols = c(KL)) %>%
+  filter(!is.infinite(KL)) %>% ### FIX WITH SMOOTHING EARLIER
+  left_join(childes_htmm_pdwz %>% distinct(transcript_id, target_child_age), 
+            by = "transcript_id")
+  
+KL %>%
+  ggplot(aes(x = target_child_age, y = KL)) +
+  geom_point() +
+  geom_smooth() 
+```
+
+
+```{r}
+KL_transitions <- childes_htmm_pdwz %>%
+  filter(target_child_age >= 6) %>%
+  mutate(speaker = if_else(speaker_role == "Mother" | speaker_role == "Father",
+                           "Parent", speaker_role)) %>%
+  filter(!is.na(lag_topic)) %>%
+  group_by(speaker, transcript_id, lag_topic, max_topic_15) %>%
+  summarise(n = n()) %>% 
+  ungroup() %>%
+  complete(max_topic_15, lag_topic, speaker, transcript_id, fill = list(n = 0)) %>% 
+  arrange(transcript_id, lag_topic, max_topic_15) 
+
+full_counts <- childes_htmm_pdwz %>%
+  filter(target_child_age >= 6) %>%
+  mutate(speaker = if_else(speaker_role == "Mother" | speaker_role == "Father",
+                           "Parent", speaker_role)) %>%
+  group_by(speaker, transcript_id, max_topic_15) %>%
+  summarise(n = n()) %>% 
+  ungroup() %>%
+  complete(max_topic_15, speaker, transcript_id, fill = list(n = 0)) %>%
+  arrange(transcript_id, max_topic_15) %>%
+  rename(full_n = n)
+
+KL_transitions <- KL_transitions %>%
+  left_join(full_counts, by = c("max_topic_15", "speaker", "transcript_id")) %>%
+  mutate(n = n + 0.01, full_n = full_n + 0.01) %>% ### FIX SMOOTHING
+  group_by(transcript_id, speaker, lag_topic) %>%
+  nest() %>% ungroup() %>% 
+  mutate(KL = map(data, ~KL.shrink(.x$n, .x$full_n))) %>%
+  select(-data) %>%
+  unnest(cols = c(KL)) %>% 
+  left_join(childes_htmm_pdwz %>% distinct(transcript_id, target_child_age), 
+            by = "transcript_id")
+
+KL_transitions %>%
+  ggplot(aes(x = target_child_age, y = KL, color = as.factor(lag_topic))) +
+  facet_wrap(~speaker) +
+  geom_point(alpha = 0.2) +
+  geom_smooth() 
 
 ```
+
 # Discussion
 
 In this paper, we present one approach to characterizing children's communicative acts on a large scale. In doing so, we gain the ability to examine the communication of more children in more contexts and across a wider age range than afforded by hand coding, and are able to examine patterns of usage that only become clear across such a wide range of data. We also lose nuance in the conversational context and non-verbal aspects of communication. Children can achieve communicative goals even before they can use language to do so: they can use gestures and vocalizations both to request a desired object and to call a person's attention to something in the environment [@bates_acquisition_1975]. Pointing alone can serve multiple functions, such as making action requests, informing, or asking for information [cite Liszkowski papers and Kovács papers]. Studies of children's one-word utterances demonstrate that they can use the same word to fulfill multiple communicative goals [@dore_1975], which are lumped together in our approach.
