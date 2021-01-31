@@ -44,7 +44,6 @@ library(tidyverse)
 library(grid)
 library(feather)
 library(reticulate)
-library(markovchain)
 library(spgs)
 library(entropy)
 use_condaenv("r-reticulate")
@@ -338,6 +337,7 @@ In this paper, we present one approach to characterizing children's communicativ
 topic_nums <- c(1:num_topics)
 topic_probs <- paste0("topic_", topic_nums)
 
+
 avg_chunks <- childes_htmm_pdwz %>%
   group_by(transcript_id) %>%
   mutate(
@@ -349,14 +349,56 @@ avg_chunks <- childes_htmm_pdwz %>%
   group_by(speaker_role, transcript_id, target_child_age, chunk) %>%
   summarise(across(all_of(topic_probs), list(mean))) %>%
   ungroup() %>%
+  mutate(age_bin = floor(target_child_age/6) *6) %>%
   arrange(transcript_id, chunk)
   
-  
-  
-  
-  select(gloss, speaker_role, lag_speaker, max_topic, lag_topic, chunk) %>%
-  View()
+topic_probs <- paste0(topic_probs, "_1")
 
+
+
+matrix_from_rows <- function(row_1, row_2) {
+  matrix <- t(as.matrix(row_1)) %*% as.matrix(row_2)
+  return(matrix)
+}
+
+
+get_prob_t_matrix <- function(df) {
+  child_rows <- which(df$speaker_role == "Target_Child")
+  child_rows <- child_rows[child_rows > 1]
+  parent_rows <- which(df$speaker_role == "Parent")
+  parent_rows <- parent_rows[parent_rows > 1]
+  df <- df %>%
+    select(all_of(topic_probs))
+  
+  parent_matrix <- map(parent_rows, 
+                       ~matrix_from_rows(df %>% slice(.x - 1), df %>% slice(.x))) %>%
+    Reduce('+', .) %>% as.tibble() %>%
+    mutate(probs_type = "parent") %>%
+    cbind(topic_probs) 
+  
+  child_matrix <- map(child_rows, 
+                      ~matrix_from_rows(df %>% slice(.x - 1), df %>% slice(.x))) %>%
+    Reduce('+', .) %>% as.tibble() %>%
+    mutate(probs_type = "child") %>%
+    cbind(topic_probs) 
+  
+  return(bind_rows(parent_matrix, child_matrix) %>% rename(prior_topic = topic_probs))
+}
+
+
+chunks_nested_36 <- avg_chunks %>%
+  group_by(age_bin, transcript_id) %>%
+  filter(n() > 2) %>%
+  nest() %>% 
+  filter(age_bin == 36) %>%
+  mutate(matrix = map(data, get_prob_t_matrix))
+
+chunks_nested_24 %>%
+  select(transcript_id, age_bin, matrix) %>%
+  unnest(matrix) %>%
+  group_by(age_bin, probs_type, current_topic) %>%
+  summarise(across(all_of(topic_probs), list(mean))) %>%
+  View()
 
 
 ```
