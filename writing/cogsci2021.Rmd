@@ -20,7 +20,7 @@ final-submission: \cogscifinalcopy
 
 ```{r global_options, include=FALSE}
 knitr::opts_chunk$set(fig.width=3, fig.height=3, fig.crop = F, 
-                      fig.pos = "tb", fig.path='figs/',
+                      fig.pos = "htbp", fig.path='figs/',
                       echo = F, warning = F, cache = F, 
                       message = F, sanitize = T)
 # Note: to build, 
@@ -56,6 +56,9 @@ childes_htmm_pdwz <- read_feather(here("data/childes_htmm_15.feather"))
 childes_htmm_phi <- read_csv(here("data/phi_vals_all_models.csv"))
 dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
 
+mutual_information <- read_csv(here("data/mutual_information_vals.csv"))
+conditional_probs <- read_csv(here("data/conditional_probs.csv"))
+
 childes_keep <- childes_htmm_pdwz %>%
   mutate(speaker_role = if_else(speaker_role == "Mother" | speaker_role == "Father",
                                 "Parent", speaker_role)) %>%
@@ -77,17 +80,14 @@ childes_htmm_pdwz <- childes_htmm_pdwz %>%
 ```
 
 From their first utterances, children are not just producing language but *using* it to communicate. A child who can produce only one-word utterances can nonetheless convey several communicative intentions: using variations in pitch, she can use the word *mama* to identify a person, question possession of an object, or to call for someone's presence [@dore_1975]. From 14 to 30 months of age, children quickly branch out from communicative acts like *requesting*, *protesting*, and *marking an event* to *agreeing to an action*, *stating intent*, and asking and answering a variety of questions [@snow_learning_1996]. These close studies of children's conversations, using rich observations to infer their likely intended meaning in context, show that much of the action of language acquisition happens at the level of what children *mean* to say.
-[...]
 
 Describing children's communicative acts at a larger scale, however, is a challenging task. Without nuanced, context-sensitive human coding, communicative acts can be hard to identify. Words are amenable to identification, storage, and tabulation using common computational tools; perhaps due to their ease of use, models of language development have often approached language development at the level of words (i.e., vocabulary learning). The goals and intentions underlying those words are less amenable to such manipulation. In this paper, we put forth one approach to modeling the children's communicative acts, working backwards from the words they produce: we model communicative acts as the latent sources from which words emerge, and characterize children's engagement in these acts across development.
 
-[...]
+Studying children's communicative acts using a computational model also allows us to extract communicative patterns across many children with less a priori specification of what those patterns are. Traditionally, studies of communicative acts among children have brought frameworks from adult communication, such as Speech Act theory [@austin_how_1962; @searle_speech_1969] and Conversation Analysis [@sacks_simplest_1974], to bear on children's conversations. While concepts like 'directive', 'expressive', 'accusation' and 'justification' can be useful to characterize children's conversations, young children may not have the same communicative needs as adults—these may not be relevant distinctions in children's communication. An advantage of characterizing patterns of language use over large swaths of data is that we do not need to specify the types of communicative acts a priori. 
 
-Studying children's communicative acts using a computational model also allows us to extract communicative patterns across many children with less a priori specification of what those patterns are. Traditionally, studies of communicative acts among children have brought frameworks from adult communication, such as Speech Act theory [@austin_how_1962; @searle_speech_1969] and Conversation Analysis [@sacks_simplest_1974], to bear on children's conversations. While concepts like 'directive', 'expressive', 'accusation' and 'justification' can be useful to characterize children's conversations, young children may not have the same communicative needs as adults—these may not be relevant distinctions in children's communication. An advantage of characterizing patterns of language use over large swaths of data is that we do not need to specify the types of communicative acts a priori. [...]
+Here, we characterize children's growing repertoire of communicative acts using a Hidden Topic Markov Model. This model observes utterances produced by parents and children and attempts to infer common underlying processes—topics—that produced them.  
 
-Here, we characterize children's growing repertoire of communicative acts using a Hidden Topic Markov Model. This model observes utterances produced by parents and children and attempts to infer common underlying processes—topics—that produced them.  [...]
-
-We first show that without top-down specification, this model extracts several communicative acts analogous to those observed in close case studies of children's communication. We then show that use of these acts has a developmental trajectory in line with findings from close studies of children's communication. [...]
+We first show that without top-down specification, this model extracts several communicative acts analogous to those observed in close case studies of children's communication. We then show that use of these acts has a developmental trajectory in line with findings from close studies of children's communication. 
 
 ```{r topic_table, results="asis", tab.env = "table*"}
 
@@ -137,81 +137,6 @@ After training, the model produces a set of topics with associated probability d
 
 In the first part of this paper, we will show that the model captures some aspects of communicative acts and explore the static distribution of these utterance types. In the second part, we will examine trajectories of topic use across development among parents and children. In the third part, we will examine the temporal dynamics of topic use within discourse.
 
-
-
-
-## Topics and their static structure
-
-The most distinctive words of each communicative act in the model, as measured by difference between a word's probability within a type of act and its average probability across all act types, are shown in Table \ref{tab:topic_table}. Based on these most distinctive words and looking at utterances in each act type, we labeled each act type to make findings easier to convey. Keep in mind, however, that these act type assignments are probabilistic, and that the labels of these kinds are subjective; these types are not ironclad. The communicative act types are as follows: mental states and testimony, labeling and directing attention, counting, evaluations and praise, proposed actions, non-present events, explanations ??, requests and provision, knowledge questions, location, social routines, backchannels and interjections, description, storytelling, and body routines.
-
-One way to characterize the diversity of communicative acts a person engages in is to measure the entropy of their communicative acts. Overall, parents' communicative acts have higher entropy than children's. Children's communicative act entropy increases drastically over development between 6 and around 24 months, and remains relatively stable across the rest of our age range, as shown in \ref{fig:entropy_plot}. Our communicative acts are therefore capturing some capacity that becomes more adult-like across development. [more description / perhaps some stats] [this paragraph could be moved to part 2.]
-
-Beyond becoming more complex across development, the ability to engage in a variety of communicative acts might reasonably be expected to correlate with other measures of language ability. Indeed, @snow_learning_1996 find that the number of speech act types children use correlates highly with the number of word types they use, but does not consistently correlate with mean length of utterance (MLU). We replicate these findings here: children's number of communicative act types produced correlate with their word types produced (*stats*) and does not consistently correlate with MLU (*stats*).
-
-```{r entropy-par-child}
-topic_count_vector <- childes_htmm_pdwz %>%
-  group_by(max_topic, transcript_id, age_in_months, speaker_role) %>%
-  count() %>% ungroup()
-
-counts <- topic_count_vector %>%
-  mutate(name = paste0(transcript_id, speaker_role)) 
-
-counts <- split(counts$n, counts$name)
-
-num_topics <- n_distinct(childes_htmm_pdwz$max_topic)
-
-```
-
-```{python}
-import ndd
-k_val = r.num_topics
-entropies_dict = {}
-
-for key, value in r.counts.items():
-  entropies_dict[key] = ndd.entropy(value, k = k_val)
-```
-
-```{r par_child_entropies}
-topic_entropies <- py$entropies_dict %>%
-  as.data.frame() %>% t() %>% as.data.frame() %>%
-  rownames_to_column() %>%
-  dplyr::rename(name = rowname, entropy = V1) %>%
-  mutate(name = str_remove(name, "X"))
-
-topic_entropy <- topic_count_vector %>% 
-  mutate(name = paste0(transcript_id, speaker_role)) %>%
-  left_join(topic_entropies, by = "name")
-
-par_child_entropies <- topic_entropy %>%
-  group_by(transcript_id, speaker_role) %>%
-  summarise(entropy = first(entropy), age = first(age_in_months)) %>%
-  group_by(age, speaker_role) %>%
-  mutate(entropy_random = entropy[sample(row_number())]) %>%
-  ungroup()
-
-```
-
-```{r branching_out_plot, fig.height = 3.4, fig.width=4.4, fig.align = "center", num.cols.cap=1, fig.cap = "Plot showing the distribution of topics produced by children and parents across development.", fig.pos="tb"}
-topics <- c("mental states", "labeling", "counting", "evaluation", "action planning",
-            "non-present events", "??", "requests and provision", "attending and questioning", 
-            "location", "people's names and greetings", "backchannels and interjections",
-            "description", "storytelling", "body routines")
-
-childes_htmm_pdwz %>%
-  mutate(age_bin = cut(age_in_months, 20, labels = FALSE),
-         age_bin = (54/20)*age_bin + 6,
-         speaker_role = if_else(speaker_role == "Target_Child", "Child", "Parent"),
-         speaker_role = factor(speaker_role, levels = c("Child", "Parent"))) %>%
-  group_by(age_bin, speaker_role) %>%
-  count(max_topic) %>%
-  ggplot(aes(x = age_bin, y = n, group = max_topic, 
-             fill = as.factor(max_topic))) +
-  geom_area(position = "fill", color = "black") +
-  facet_wrap(~speaker_role) +
-  theme_classic() + theme(legend.position = "none")
-
-```
-
 ```{r snippet_table, results="asis", tab.env = "table"}
 
 childes_htmm_pdwz <- childes_htmm_pdwz %>%
@@ -237,11 +162,12 @@ snippet_tab <- childes_htmm_pdwz %>%
   pivot_wider(names_from = target_child_age, values_from = c(gloss, speaker))%>%
   select(act_type, contains("23"), contains("39"), contains("53"), contains("57")) %>%
   xtable(label = "tab:snippet_table",
+         hline.after = c(-1, 0),
          caption = "Four examples of the same communicative act sequence (5, 12, 4, 5) in conversations from different children at different ages. Though they involve different topical content, they follow a similar communicative pattern: a suggestion or request regarding action and location; an affirmative or negative response; an evaluative statement or question; and another suggestion regarding action and location.")
 
 extra_sequences = c(4172,5798,5985,6094)
 
-print(snippet_tab, type = "latex", comment = F, table.placement = "tb", floating = TRUE,
+print(snippet_tab, type = "latex", comment = F, table.placement = "t", floating = TRUE,
       floating.environment = "table*",
       include.rownames = FALSE)
 
@@ -260,6 +186,51 @@ tab2 <- childes_htmm_pdwz %>%
 
 ```
 
+
+## Topics and their static structure
+
+The most distinctive words of each communicative act in the model, as measured by difference between a word's probability within a type of act and its average probability across all act types, are shown in Table \ref{tab:topic_table}. Based on these most distinctive words and looking at utterances in each act type, we labeled each act type to make findings easier to convey. Keep in mind, however, that these act type assignments are probabilistic, and that the labels of these kinds are subjective; these types are not ironclad. The communicative act types are as follows: mental states and testimony, labeling and directing attention, counting, evaluations and praise, proposed actions, non-present events, explanations ??, requests and provision, knowledge questions, location, social routines, backchannels and interjections, description, storytelling, and body routines.
+
+
+
+```{r entropy-par-child}
+
+num_topics <- n_distinct(childes_htmm_pdwz$max_topic)
+topic_nums <- c(1:num_topics)
+topic_probs <- paste0("topic_", topic_nums)
+
+topic_entropies <- read_csv(here("data/childes_topic_entropies.csv"))
+word_entropies <- read_csv(here("data/childes_word_entropies.csv"))
+
+```
+
+```{r branching_out_plot, fig.height = 3.4, fig.width=7, fig.align = "left", num.cols.cap=2, fig.cap = "Plot showing the distribution of topics produced by children and parents across development.", fig.pos="t"}
+topics <- c("mental states", "labeling", "counting", "evaluation", "action planning",
+            "non-present events", "??", "requests and provision", "attending and questioning", 
+            "location", "people's names and greetings", "backchannels and interjections",
+            "description", "storytelling", "body routines")
+
+branching <- childes_htmm_pdwz %>%
+  mutate(age_bin = cut(age_in_months, 20, labels = FALSE),
+         age_bin = (54/20)*age_bin + 6,
+         speaker_role = if_else(speaker_role == "Target_Child", "Child", "Parent"),
+         speaker_role = factor(speaker_role, levels = c("Child", "Parent"))) %>%
+  group_by(age_bin, speaker_role) %>%
+  count(max_topic) %>%
+  ggplot(aes(x = age_bin, y = n, group = max_topic, 
+             fill = as.factor(max_topic))) +
+  geom_area(position = "fill", color = "black") +
+  facet_wrap(~speaker_role) +
+  theme_classic() + theme(legend.position = "none")
+
+print(branching, fig.align = "center", fig.pos="bt", 
+      environment = "figure*")
+```
+
+One way to characterize the diversity of communicative acts a person engages in is to measure the entropy of their communicative acts. Overall, parents' communicative acts have higher entropy than children's. Children's communicative act entropy increases drastically over development between 6 and around 24 months, and remains relatively stable across the rest of our age range, as shown in Figure \ref{fig:entropy_plot}. Our communicative acts are therefore capturing some capacity that becomes more adult-like across development. [more description / perhaps some stats] [this paragraph could be moved to part 2.]
+
+Beyond becoming more complex across development, the ability to engage in a variety of communicative acts might reasonably be expected to correlate with other measures of language ability. Indeed, @snow_learning_1996 find that the number of speech act types children use correlates highly with the number of word types they use, but does not consistently correlate with mean length of utterance (MLU). We replicate these findings here: children's number of communicative act types produced correlate with their word types produced (*stats*) and does not consistently correlate with MLU (*stats*).
+
 ## Use of communicative acts over development
 
 Children's use of communicative acts changes drastically as they grow. Early on, children's utterances are predominantly backchannels, interjections, and affirmations or negations (e.g., "yeah", "no", "uh huh"). By around 20 months of age, social routines such as greetings and naming family members (e.g., "hi", "bye", "mommy") displace backchannels to become a substantial part of children's repertoire. Around the same age, an increasing proportion of children's utterances direct attention to or label things in the environment (e.g., "what's that?", "there's a..."). Parents also frequently use these labeling utterances when their children are around 15-30 months old; after around 30 months, these utterance diminish in both parent and child speech. 
@@ -270,17 +241,17 @@ Notably, children at the lowest end of our age range start with at least some re
 
 Parents' and children's communicative usage patterns echo one another somewhat [...] [Potential alignment at young ages etc ...]
 
-```{r word_types_plot, fig.height = 3.4, fig.width=3.4, fig.align = "center", num.cols.cap=1, fig.cap = "The number of communicative act types children produced plotted against the number of word types they produced in six-month age ranges.", fig.pos="tb"}
+```{r word_types}
 
-n_topics <- topic_count_vector %>%
-  group_by(age_in_months, transcript_id, speaker_role) %>%
+n_topics <- topic_entropies %>%
+  group_by(age, transcript_id, speaker_role) %>%
   summarise(n_topics = n())
 
 n_mlu_topics <- childes_htmm_pdwz %>%
   filter(speaker_role == "Target_Child") %>%
   group_by(age_in_months, transcript_id) %>%
   summarise(mlu = mean(num_tokens)) %>%
-  left_join(n_topics %>% filter(speaker_role == "Target_Child"), by = c("transcript_id", "age_in_months"))
+  left_join(n_topics %>% filter(speaker_role == "Target_Child"), by = c("transcript_id", "age_in_months" = "age"))
 
 word_counts <- childes_htmm_pdwz %>%
   select(gloss, transcript_id, age_in_months, speaker_role) %>%
@@ -296,16 +267,17 @@ num_word_types <- word_counts %>%
   summarise(n_word_types = n())
 
 n_mlu_words_entropies <- n_mlu_topics %>%
-  left_join(num_word_types %>% filter(speaker_role == "Target_Child"), by = c("transcript_id", "speaker_role",
-                                                                         "age_in_months"))
+  left_join(num_word_types %>% filter(speaker_role == "Target_Child"), by = c("transcript_id", "speaker_role","age_in_months"))
 
 ```
 
 
-```{r entropy_plot, fig.height = 3.4, fig.width=3.4, fig.align = "center", num.cols.cap=1, fig.cap = "Entropy of topics produced by children, mothers and fathers over development.", fig.pos="tb"}
-par_child_entropies %>%
-  filter(age >= 6) %>%
+```{r entropy_plot, fig.height = 3.4, fig.width=7, fig.align = "left", num.cols.cap=2, fig.cap = "Entropy of topics produced by children, mothers and fathers over development.", fig.pos="b"}
+topic_entropies %>%
+  mutate(entropy_type = "Communicative Act") %>%
+  rbind(word_entropies %>% mutate(entropy_type = "Productive Vocabulary")) %>%
   ggplot(aes(age, entropy, color = speaker_role)) +
+  facet_wrap(~entropy_type) +
   geom_jitter(alpha = 0.3, size = 0.1) +
   geom_smooth() +
   ylab("Entropy") +
@@ -334,162 +306,27 @@ In this paper, we present one approach to characterizing children's communicativ
 
 
 ```{r mi}
-topic_nums <- c(1:num_topics)
-topic_probs <- paste0("topic_", topic_nums)
+mutual_information %>%
+  ggplot(aes(age_bin, mi, color = type)) +
+  geom_point() +
+  geom_smooth() +
+  ylab("Mutual Information") +
+  xlab("Age") +
+  ggtitle("") +
+  theme_classic() + theme(legend.position = c(0.8, 0.2)) 
+```
 
-
-avg_chunks <- childes_htmm_pdwz %>%
-  group_by(transcript_id) %>%
-  mutate(
-    lag_speaker = lag(speaker_role),
-    temp = ifelse(speaker_role != lag_speaker, 1, 0),
-    temp_id = cumsum(c(0, temp[!is.na(temp)])),
-    chunk = temp_id
-  ) %>%
-  group_by(speaker_role, transcript_id, target_child_age, chunk) %>%
-  summarise_at(topic_probs, mean) %>%
-  ungroup() %>%
-  mutate(age_bin = floor(target_child_age/6) *6) %>%
-  arrange(transcript_id, chunk)
-  
-
-
-matrix_from_rows <- function(row_1, row_2) {
-  matrix <- t(as.matrix(row_1)) %*% as.matrix(row_2)
-  return(matrix)
-}
-
-
-get_prob_t_matrix <- function(df) {
-  child_rows <- which(df$speaker_role == "Target_Child")
-  child_rows <- child_rows[child_rows > 1]
-  parent_rows <- which(df$speaker_role == "Parent")
-  parent_rows <- parent_rows[parent_rows > 1]
-  df <- df %>%
-    select(all_of(topic_probs))
-  
-  parent_matrix <- map(parent_rows, 
-                       ~matrix_from_rows(df %>% slice(.x - 1), df %>% slice(.x))) %>%
-    Reduce('+', .) %>% as.tibble() %>%
-    mutate(speaker = "parent") %>%
-    cbind(topic_probs) 
-  
-  child_matrix <- map(child_rows, 
-                      ~matrix_from_rows(df %>% slice(.x - 1), df %>% slice(.x))) %>%
-    Reduce('+', .) %>% as.tibble() %>%
-    mutate(speaker = "child") %>%
-    cbind(topic_probs) 
-  
-  child_rows <- child_rows[child_rows > 2]
-  
-  child_self <- map(child_rows, 
-                      ~matrix_from_rows(df %>% slice(.x - 2), df %>% slice(.x))) %>%
-    Reduce('+', .) %>% as.tibble() %>%
-    mutate(speaker = "child_self") %>%
-    cbind(topic_probs) 
-  
-  return(bind_rows(parent_matrix, child_matrix, child_self) %>% 
-           rename(prior_topic = topic_probs))
-}
-
-
-chunks_nested <- avg_chunks %>%
-  group_by(age_bin, transcript_id) %>%
-  filter(n() > 2) %>%
-  nest() %>% 
-  mutate(matrix = map(data, get_prob_t_matrix))
-
-chunks_by_age <- chunks_nested %>%
-  select(transcript_id, age_bin, matrix) %>%
-  unnest(matrix) %>%
-  group_by(age_bin, probs_type, prior_topic) %>%
-  summarise_at(topic_probs, sum) %>%
-  ungroup()
-  
-chunks_normed <- chunks_by_age %>% 
-  mutate(row_sum = rowSums(select(., all_of(topic_probs)))) %>% 
-  mutate_at(all_of(topic_probs), ~ ./row_sum) 
-
-chunks_normed %>%
+```{r conditional_prob_plot, fig.env = "figure*", fig.width = 7, fig.height = 3}
+cprobs_fig <- conditional_probs %>%
   pivot_longer(cols = topic_probs, names_to = "current_topic", values_to = "prob") %>%
   ggplot(aes(x=prior_topic, y=current_topic, fill=prob)) + 
   geom_tile() +
-  facet_grid(probs_type~age_bin, scales = "free") 
+  facet_grid(speaker~age_bin, scales = "free") 
 
-parent_probs <- avg_chunks %>%
-  filter(speaker_role == "Parent") %>%
-  group_by(age_bin) %>%
-  summarise_at(topic_probs, sum) %>%
-  ungroup() %>%
-  mutate(row_sum = rowSums(select(., all_of(topic_probs)))) %>% 
-  mutate_at(all_of(topic_probs), ~ ./row_sum) %>%
-  pivot_longer(cols = topic_probs, names_to = "state", values_to = "prob") %>%
-  group_by(age_bin) %>%
-  mutate(entropy = entropy(prob)) %>%
-  ungroup()
-
-child_probs <- avg_chunks %>%
-  filter(speaker_role == "Target_Child") %>%
-  group_by(age_bin) %>%
-  summarise_at(topic_probs, sum) %>%
-  ungroup() %>%
-  mutate(row_sum = rowSums(select(., all_of(topic_probs)))) %>% 
-  mutate_at(all_of(topic_probs), ~ ./row_sum)  %>%
-  pivot_longer(cols = topic_probs, names_to = "state", values_to = "prob") %>%
-  group_by(age_bin) %>%
-  mutate(entropy = entropy(prob)) %>%
-  ungroup()
-
-child_probs %>%
-  group_by(age_bin) %>%
-  summarise(first(entropy))
-
-parent_probs %>%
-  group_by(age_bin) %>%
-  summarise(first(entropy))
-
-child_given_parent <- chunks_normed %>%
-  filter(probs_type == "child") %>%
-  pivot_longer(cols = topic_probs, names_to = "current_topic", values_to = "prob") %>%
-  group_by(age_bin, prior_topic) %>% 
-  mutate(entropy = entropy(prob)) %>%
-  summarise(conditional_entropy = first(entropy)) %>% ungroup()
-
-parent_given_child <- chunks_normed %>%
-  filter(probs_type == "parent") %>%
-  pivot_longer(cols = topic_probs, names_to = "current_topic", values_to = "prob") %>%
-  group_by(age_bin, prior_topic) %>% 
-  mutate(entropy = entropy(prob)) %>%
-  summarise(conditional_entropy = first(entropy)) %>% ungroup()
-
-sums_child_given_parent <- child_given_parent %>%
-  left_join(parent_probs, by = c("prior_topic" = "state", "age_bin")) %>%
-  mutate(weighted_entropy = conditional_entropy * prob) %>%
-  group_by(age_bin) %>%
-  summarise(sum_weighted_entropies = sum(weighted_entropy)) %>%
-  ungroup()
-
-sums_parent_given_child <- parent_given_child %>%
-  left_join(child_probs, by = c("prior_topic" = "state", "age_bin")) %>%
-  mutate(weighted_entropy = conditional_entropy * prob) %>%
-  group_by(age_bin) %>%
-  summarise(sum_weighted_entropies = sum(weighted_entropy)) %>%
-  ungroup()
-
-child_probs %>%
-  group_by(age_bin) %>%
-  summarise(entropy = first(entropy)) %>% ungroup() %>%
-  left_join(sums_child_given_parent, by = "age_bin") %>%
-  mutate(mi = entropy - sum_weighted_entropies)
-
-parent_probs %>%
-  group_by(age_bin) %>%
-  summarise(entropy = first(entropy)) %>% ungroup() %>%
-  left_join(sums_parent_given_child, by = "age_bin") %>%
-  mutate(mi = entropy - sum_weighted_entropies)
+print(cprobs_fig, fig.align = "center", fig.pos="b", 
+      environment = "figure*")
 
 ```
-
 
 # References 
 

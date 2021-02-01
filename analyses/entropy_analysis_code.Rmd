@@ -1,0 +1,131 @@
+---
+title: "entropy_analysis_code"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+library(tidyverse)
+library(reticulate)
+use_condaenv("r-reticulate")
+```
+
+```{r load-data}
+childes_htmm_pdwz <- read_feather(here("data/childes_htmm_15.feather")) 
+
+childes_keep <- childes_htmm_pdwz %>%
+  mutate(speaker_role = if_else(speaker_role == "Mother" | speaker_role == "Father",
+                                "Parent", speaker_role)) %>%
+  group_by(transcript_id, speaker_role) %>%
+  summarise(n = n()) %>%
+  ungroup() %>%
+  complete(speaker_role, transcript_id, fill = list(n = 0)) %>%
+  arrange(transcript_id) %>%
+  pivot_wider(names_from = "speaker_role", values_from = "n") %>%
+  filter(Parent > 10, Target_Child > 10)
+
+childes_htmm_pdwz <- childes_htmm_pdwz %>%
+  mutate(speaker_role = if_else(speaker_role == "Mother" | speaker_role == "Father",
+                                "Parent", speaker_role)) %>%
+  filter(transcript_id %in% childes_keep$transcript_id) %>%
+  mutate(age_in_months = floor(target_child_age)) %>%
+  filter(age_in_months >= 6) %>%
+  mutate(age_bin = cut(age_in_months, breaks = 9))
+```
+
+
+```{r topic-counts}
+num_topics <- n_distinct(childes_htmm_pdwz$max_topic)
+
+topic_count_vector <- childes_htmm_pdwz %>%
+  group_by(max_topic, transcript_id, age_in_months, speaker_role) %>%
+  count() %>% ungroup()
+
+counts <- topic_count_vector %>%
+  mutate(name = paste0(transcript_id, speaker_role)) 
+
+counts <- split(counts$n, counts$name)
+
+```
+
+```{python}
+import ndd
+k_val = r.num_topics
+entropies_dict = {}
+
+for key, value in r.counts.items():
+  entropies_dict[key] = ndd.entropy(value, k = k_val)
+```
+
+```{r par_child_entropies}
+topic_entropies <- py$entropies_dict %>%
+  as.data.frame() %>% t() %>% as.data.frame() %>%
+  rownames_to_column() %>%
+  dplyr::rename(name = rowname, entropy = V1) %>%
+  mutate(name = str_remove(name, "X"))
+
+topic_entropy <- topic_count_vector %>% 
+  mutate(name = paste0(transcript_id, speaker_role)) %>%
+  left_join(topic_entropies, by = "name")
+
+par_child_entropies <- topic_entropy %>%
+  group_by(transcript_id, speaker_role) %>%
+  summarise(entropy = first(entropy), age = first(age_in_months)) %>%
+  group_by(age, speaker_role) %>%
+  mutate(entropy_random = entropy[sample(row_number())]) %>%
+  ungroup()
+```
+
+```{r word-counts}
+
+word_counts <- childes_htmm_pdwz %>%
+  select(gloss, transcript_id, age_in_months, speaker_role) %>%
+  mutate(word = strsplit(as.character(gloss), " ")) %>% 
+  unnest(word) %>%
+  group_by(age_in_months, transcript_id, speaker_role, word) %>%
+  summarise(n = n()) %>%
+  ungroup()
+
+num_words <- word_counts %>% distinct(word) %>% nrow()
+
+word_counts_v <- word_counts %>%
+  mutate(name = paste0(transcript_id, speaker_role)) 
+
+word_counts_v <- split(word_counts_v$n, word_counts_v$name)
+
+```
+
+```{python}
+import ndd
+k_val = r.num_words
+word_entropies_dict = {}
+
+for key, value in r.word_counts_v.items():
+  word_entropies_dict[key] = ndd.entropy(value, k = k_val)
+```
+
+```{r}
+word_entropies <- py$word_entropies_dict %>%
+  as.data.frame() %>% t() %>% as.data.frame() %>%
+  rownames_to_column() %>%
+  dplyr::rename(name = rowname, entropy = V1) %>%
+  mutate(name = str_remove(name, "X"))
+
+word_entropy <- word_counts %>% 
+  mutate(name = paste0(transcript_id, speaker_role)) %>%
+  left_join(word_entropies, by = "name")
+
+par_child_word_entropies <- word_entropy %>%
+  group_by(transcript_id, speaker_role) %>%
+  summarise(entropy = first(entropy), age = first(age_in_months)) %>%
+  group_by(age, speaker_role) %>%
+  mutate(entropy_random = entropy[sample(row_number())]) %>%
+  ungroup()
+
+```
+
+```{r write-data}
+#write_csv(par_child_entropies, here("data/childes_topic_entropies.csv"))
+#write_csv(par_child_word_entropies, here("data/childes_word_entropies.csv"))
+```
