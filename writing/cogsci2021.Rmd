@@ -20,8 +20,8 @@ final-submission: \cogscifinalcopy
 
 ```{r global_options, include=FALSE}
 knitr::opts_chunk$set(fig.width=3, fig.height=3, fig.crop = F, 
-                      fig.pos = "htbp", fig.path='figs/',
-                      echo = F, warning = F, cache = F, 
+                      fig.pos = "tb", fig.path='figs/',
+                      echo = F, warning = F, cache = T, 
                       message = F, sanitize = T)
 # Note: to build, 
 options(digits=2)
@@ -45,8 +45,10 @@ library(grid)
 library(feather)
 library(spgs)
 library(entropy)
+library(glue)
 
-theme_set(theme_few())
+
+theme_set(theme_few(base_size = 10))
 ```
 
 ```{r read-data}
@@ -146,7 +148,7 @@ childes_htmm_pdwz <- childes_htmm_pdwz %>%
   ungroup()
 
 
-snippet_tab <- childes_htmm_pdwz %>%
+snippet <- childes_htmm_pdwz %>%
   filter(quadgram == "5_12_4_5" | lag(quadgram) == "5_12_4_5" | lead(quadgram) == "5_12_4_5" |
            lag(quadgram, n = 2) == "5_12_4_5") %>%
   select(speaker_role, gloss, max_topic, quadgram, 
@@ -156,31 +158,38 @@ snippet_tab <- childes_htmm_pdwz %>%
          !(transcript_id == 4712 & utterance_order < 209)) %>%
   mutate(utterance_order = rep(1:4,4), target_child_age = floor(target_child_age)) %>%
   select(max_topic, speaker_role, gloss, target_child_age, utterance_order) %>% 
-  rename("act_type" = "max_topic", "speaker" = "speaker_role") %>%
-  pivot_wider(names_from = target_child_age, values_from = c(gloss, speaker))%>%
-  select(act_type, contains("23"), contains("39"), contains("53"), contains("57")) %>%
-  xtable(label = "tab:snippet_table",
+  mutate(speaker_role = if_else(speaker_role == "Parent", "P: ", "C: ")) %>%
+  unite(act, speaker_role, gloss, sep = "") %>%
+  mutate(target_child_age = glue("{target_child_age} months")) %>%
+  pivot_wider(names_from = target_child_age, values_from = act) %>%
+  select(-utterance_order) %>%
+  select(max_topic, contains("23"), contains("39"), #skipped 53
+         contains("57")) %>%
+  rename(act = max_topic) 
+
+snippet_tab <- xtable(snippet, label = "tab:snippet_table",
          hline.after = c(-1, 0),
-         caption = "Four examples of the same communicative act sequence (5, 12, 4, 5) in conversations from different children at different ages. Though they involve different topical content, they follow a similar communicative pattern: a suggestion or request regarding action and location; an affirmative or negative response; an evaluative statement or question; and another suggestion regarding action and location.")
-
-extra_sequences = c(4172,5798,5985,6094)
-
-print(snippet_tab, type = "latex", comment = F, table.placement = "t", floating = TRUE,
-      floating.environment = "table*",
-      include.rownames = FALSE)
-
-
-tab2 <- childes_htmm_pdwz %>%
-  filter((transcript_id == 5657 & utterance_order %in% c(64:73)) |
-           (transcript_id == 6910 & utterance_order %in% c(4:13)) |
-           (transcript_id == 5772 & utterance_order %in% c(678:688)) )%>%
-  select(speaker_role, gloss, max_topic, age_in_months, transcript_id, utterance_order) %>%
-  group_by(age_in_months) %>% mutate(utterance_order = 1:n()) %>% ungroup() %>%
-  dplyr::rename(age = age_in_months, topic = max_topic) %>%
-  arrange(age, utterance_order) %>%
-  mutate(age = as.character(age)) %>%
-  select(age, speaker_role, topic, gloss) %>%
-  xtable()
+         caption = "Three examples of the same communicative act sequence (5, 12, 4, 5) in conversations from different children at different ages. Though they involve different topical content, they follow a similar communicative pattern: a suggestion or request regarding action and location; an affirmative or negative response; an evaluative statement or question; and another suggestion regarding action and location.")
+# 
+# extra_sequences = c(4172,5798,5985,6094)
+# 
+print(snippet_tab, type = "latex", comment = F, table.placement = "tb", 
+       floating = TRUE,
+       floating.environment = "table*",
+       include.rownames = FALSE)
+# 
+# 
+# tab2 <- childes_htmm_pdwz %>%
+#   filter((transcript_id == 5657 & utterance_order %in% c(64:73)) |
+#            (transcript_id == 6910 & utterance_order %in% c(4:13)) |
+#            (transcript_id == 5772 & utterance_order %in% c(678:688)) )%>%
+#   select(speaker_role, gloss, max_topic, age_in_months, transcript_id, utterance_order) %>%
+#   group_by(age_in_months) %>% mutate(utterance_order = 1:n()) %>% ungroup() %>%
+#   dplyr::rename(age = age_in_months, topic = max_topic) %>%
+#   arrange(age, utterance_order) %>%
+#   mutate(age = as.character(age)) %>%
+#   select(age, speaker_role, topic, gloss) %>%
+#   xtable()
 
 ```
 
@@ -202,7 +211,7 @@ word_entropies <- read_csv(here("data/childes_word_entropies.csv"))
 
 ```
 
-```{r branching_out_plot, fig.height = 3.4, fig.width=7, fig.align = "left", num.cols.cap=2, fig.cap = "Plot showing the distribution of topics produced by children and parents across development.", fig.pos="t"}
+```{r branching_out_plot, fig.height = 3.5, fig.width = 7, fig.env = "figure*", fig.align = "left", fig.cap = "The proportion of communicative acts of each type produced by children and parents across development."}
 topics <- c("mental states", "labeling", "counting", "evaluation", "action planning",
             "non-present events", "??", "requests and provision", "attending and questioning", 
             "location", "people's names and greetings", "backchannels and interjections",
@@ -214,15 +223,24 @@ branching <- childes_htmm_pdwz %>%
          speaker_role = if_else(speaker_role == "Target_Child", "Child", "Parent"),
          speaker_role = factor(speaker_role, levels = c("Child", "Parent"))) %>%
   group_by(age_bin, speaker_role) %>%
-  count(max_topic) %>%
-  ggplot(aes(x = age_bin, y = n, group = max_topic, 
+  count(max_topic) 
+
+branching_annotations <- tibble(max_topic = 1:num_topics,
+                                topic_name = topics,
+                                age_bin = c(60, 30, 48, 53, 50, 55, 50,
+                                            45, 50, 35, 50, 50, 38, 55, 40),
+                                n = c(.95, .9, .8, .74, .64, .57, .48, .50, 
+                                      .45, .37, .3, .2, .13, .07, .02),
+                                speaker_role = "Parent")
+
+ggplot(branching, aes(x = age_bin, y = n, group = max_topic, 
              fill = as.factor(max_topic))) +
   geom_area(position = "fill", color = "black") +
   facet_wrap(~speaker_role) +
-  theme_classic() + theme(legend.position = "none")
-
-print(branching, fig.align = "center", fig.pos="bt", 
-      environment = "figure*")
+  theme(legend.position = "none") + 
+  geom_text(aes(label = topic_name), size = 2.5, color = "white", hjust = 1,
+            data = branching_annotations) +
+  labs(x = "age (months)", y = "communicative act proportion")
 ```
 
 One way to characterize the diversity of communicative acts a person engages in is to measure the entropy of their communicative acts. Overall, parents' communicative acts have higher entropy than children's. Children's communicative act entropy increases drastically over development between 6 and around 24 months, and remains relatively stable across the rest of our age range, as shown in Figure \ref{fig:entropy_plot}. Our communicative acts are therefore capturing some capacity that becomes more adult-like across development. [more description / perhaps some stats] [this paragraph could be moved to part 2.]
@@ -270,18 +288,34 @@ n_mlu_words_entropies <- n_mlu_topics %>%
 ```
 
 
-```{r entropy_plot, fig.height = 3.4, fig.width=7, fig.align = "left", num.cols.cap=2, fig.cap = "Entropy of topics produced by children, mothers and fathers over development.", fig.pos="b"}
-topic_entropies %>%
+```{r entropy-model}
+type_entropies <- topic_entropies %>%
   mutate(entropy_type = "Communicative Act") %>%
-  rbind(word_entropies %>% mutate(entropy_type = "Productive Vocabulary")) %>%
-  ggplot(aes(age, entropy, color = speaker_role)) +
-  facet_wrap(~entropy_type) +
+  bind_rows(word_entropies %>% mutate(entropy_type = "Productive Vocabulary")) 
+
+entropy_model <- lmer(entropy ~ speaker_role * log(age) * entropy_type +
+       (speaker_role|transcript_id),
+     data = type_entropies) 
+
+```
+
+```{r entropy_plot, fig.width = 3.5, fig.cap = "Entropy of topics produced by children, mothers and fathers over development.", fig.pos="tb"}
+type_annotations <- tibble(age = 40, entropy = c(6, 4),
+                           speaker_role = c("Parent", "Target_Child"),
+                           plot_label = c("Parent", "Child"),
+                           entropy_type = "Productive Vocabulary")
+
+ggplot(type_entropies, aes(age, entropy, color = speaker_role, 
+                           group = interaction(entropy_type, speaker_role))) +
   geom_jitter(alpha = 0.3, size = 0.1) +
-  geom_smooth() +
+  stat_smooth(formula = y ~ log(x), aes(linetype = "speaker_role")) +
   ylab("Entropy") +
   xlab("Age") +
-  ggtitle("Entropy of communicative acts") +
-  theme_classic() + theme(legend.position = c(0.8, 0.2)) 
+  ggtitle("Entropy of communicative acts and words") +
+  theme(legend.position = "none") +
+  annotate("text", x = 10, y = 6.5, label = "words", size = 5) +
+  annotate("text", x = 10, y = .5, label = "acts", size = 5) +
+  geom_text(aes(label = plot_label), data = type_annotations)
 
 ```
 
@@ -311,7 +345,7 @@ mutual_information %>%
   ylab("Mutual Information") +
   xlab("Age") +
   ggtitle("") +
-  theme_classic() + theme(legend.position = c(0.8, 0.2)) 
+  theme(legend.position = c(0.8, 0.2)) 
 ```
 
 ```{r conditional_prob_plot, fig.env = "figure*", fig.width = 7, fig.height = 3}
