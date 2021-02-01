@@ -197,9 +197,9 @@ phi_vals %>%
   pivot_wider(names_from = topic, values_from = word) %>%
   View()
 
-pdwz_vals_t <- read_tsv(here("data/childes_gloss_25.pdwz"))
+pdwz_vals_t <- read_tsv(here("data/childes_gloss_15.pdwz"))
 
-topics = c(1:25) 
+topics = c(1:15) 
 topics = sapply(topics, toString)
 topics = paste0("topic_", topics)
 topics_star = paste0(topics, "_*")
