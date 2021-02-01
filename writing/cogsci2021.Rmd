@@ -46,6 +46,7 @@ library(feather)
 library(spgs)
 library(entropy)
 library(glue)
+library(viridis)
 
 
 theme_set(theme_few(base_size = 10))
@@ -350,10 +351,13 @@ mutual_information %>%
 
 ```{r conditional_prob_plot, fig.env = "figure*", fig.width = 7, fig.height = 3}
 cprobs_fig <- conditional_probs %>%
+  mutate(age_median = if_else(age_bin <= 18, "younger", "older")) %>% 
   pivot_longer(cols = topic_probs, names_to = "current_topic", values_to = "prob") %>%
-  ggplot(aes(x=prior_topic, y=current_topic, fill=prob)) + 
+  ggplot(aes(x=prior_topic, y=current_topic, fill=log(prob))) + 
   geom_tile() +
-  facet_grid(speaker~age_bin, scales = "free") 
+  facet_grid(speaker~age_median, scales = "free") +
+  scale_fill_gradientn(colours = viridis(256, option = "D"))
+
 
 print(cprobs_fig, fig.align = "center", fig.pos="b", 
       environment = "figure*")
