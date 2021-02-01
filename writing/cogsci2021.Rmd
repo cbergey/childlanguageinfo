@@ -43,10 +43,8 @@ library(broom.mixed)
 library(tidyverse)
 library(grid)
 library(feather)
-library(reticulate)
 library(spgs)
 library(entropy)
-use_condaenv("r-reticulate")
 
 theme_set(theme_few())
 ```
