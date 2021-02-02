@@ -1,5 +1,5 @@
 ---
-title: "Extracting communicative acts from large corpora of parent–child conversations"
+title: "Automatically identify communicative acts in parent–child conversations"
 
 
 bibliography: child-discourse.bib
@@ -9,7 +9,8 @@ document-params: "10pt, letterpaper"
 author-information: > 
    \author{Anonymous CogSci Submission}
    
-abstract:
+abstract: |
+  Over their first years of life, children learn not just the words of their native language, but how to use them to communicate. Becauese manual annotation of communicative acts does not scale to large corpora, our understanding of communicative development is limited to case studies of a few children at a few time points. We present a method for automatic identification of communicative acts using a Hidden Markov Topic Model, and apply it to all the entire CHILDES database. We first describe qualitative changes in parent-child interactions over development, and then use our method to demonstrate two large-scale features of communicative development: (1) children develop an adult-like repertoire of communicative acts months before they develop an adult-like diversity of words, and (2) children's mastery of communicative acts co-incides with the point of highest predictability between parents acts and children's, suggesting that structured interactions may play an important role in language development.
   
 keywords: >
   language input, language acquisition, child-directed speech, corpus analysis
@@ -48,7 +49,6 @@ library(entropy)
 library(glue)
 library(viridis)
 
-
 theme_set(theme_few(base_size = 10))
 ```
 
@@ -82,11 +82,39 @@ childes_htmm_pdwz <- childes_htmm_pdwz %>%
 
 From their first utterances, children are not just producing language but *using* it to communicate. A child who can produce only one-word utterances can nonetheless convey several communicative intentions: using variations in pitch, she can use the word *mama* to identify a person, question possession of an object, or to call for someone's presence [@dore_1975]. From 14 to 30 months of age, children quickly branch out from communicative acts like *requesting*, *protesting*, and *marking an event* to *agreeing to an action*, *stating intent*, and asking and answering a variety of questions [@snow_learning_1996]. These close studies of children's conversations, using rich observations to infer intended meaning in context, show that much of the action of language acquisition happens at the level of what children *mean* to say.
 
-Describing children's communicative acts on a larger scale, however, is a challenging task. Without nuanced, context-sensitive human coding, communicative acts can be hard to identify. Words are amenable to identification, storage, and tabulation using common computational tools; perhaps due to their ease of use, models of language development have often approached language development at the level of words (i.e., vocabulary learning). The goals and intentions underlying those words are less amenable to such manipulation. In this paper, we put forth one approach to modeling the children's communicative acts, working backwards from the words they produce: we model communicative acts as the latent sources from which words emerge, and characterize children's engagement in these acts across development.
+**SOMETHING ABOUT HOW WE HAVE LOTS OF MODELS OF LANGUAGE DEVELOPMENT BUT BASICALLY NONE ABOUT COMMUNICATIVE DEVELOPMENT. TO BUILD THESE MODELS, WE NEED TO HAVE SOME DATA TO EXPLAIN!**
 
-Studying children's communicative acts using a computational model allows us to extract communicative patterns across many children with less a priori specification of what those patterns are. Traditionally, studies of communicative acts among children have brought frameworks from adult communication, such as Speech Act theory [@austin_how_1962; @searle_speech_1969] and Conversation Analysis [@sacks_simplest_1974], to bear on children's conversations. While these systems can be useful to characterize children's conversations, young children may not have the same communicative needs as adults—these may not be relevant distinctions in children's communication. An advantage of characterizing patterns of language use over large swaths of data is that we do not need to specify the types of communicative acts a priori. 
+Describing children's communicative acts on a larger scale, however, is a challenging task. Without nuanced, context-sensitive human coding, communicative acts can be hard to identify. Words are amenable to identification, storage, and tabulation using common computational tools; perhaps due to their ease of use, models of language development have often approached language development at the level of words (i.e., vocabulary learning). The goals and intentions underlying those words are less amenable to such manipulation. We present an approach to modeling the children's communicative acts, working backwards from the words they produce: we model communicative acts as the latent sources from which words emerge, and characterize children's engagement in these acts across development.
 
-Here, we characterize children's growing repertoire of communicative acts using a Hidden Topic Markov Model. This model observes utterances produced by parents and children and attempts to infer common underlying processes—topics—that produced them. We first show that this model extracts several communicative acts analogous to those observed in close case studies of children's communication without specifying them top-down. We then show that use of these acts has a developmental trajectory in line with those studies: children's act usage quickly proliferates, and has parent-like diversity by XX months. Further, these acts have distinct developmental trajectories that are in line with prior research. Finally, we show that parents and children engage in these acts contingently within conversations, and that this sequential contingency seems to peak at a fairly young age, when children are engaging in predictable exchanges and social routines.
+Traditionally, studies of communicative acts among children have brought frameworks from adult communication, such as Speech Act theory [@austin_how_1962; @searle_speech_1969] and Conversation Analysis [@sacks_simplest_1974], to bear on children's conversations. While these systems can be useful to characterize children's conversations, young children may not have the same communicative needs as adults—-these may not be relevant distinctions in children's communication. Studying children's communicative acts using a computational model allows us to extract communicative patterns across many children with less a priori specification of what those patterns are. 
+
+Here, we characterize children's growing repertoire of communicative acts using a Hidden Topic Markov Model. This model observes utterances produced by parents and children and attempts to infer common underlying processes—-topics-—that produced them. We first show that this model extracts several communicative acts analogous to those observed in close case studies of children's communication without specifying them top-down. We then show that use of these acts has a developmental trajectory in line with those studies: children's act usage quickly proliferates, and has parent-like diversity by XX months. Further, these acts have distinct developmental trajectories that are in line with prior research. Finally, we show that parents and children engage in these acts contingently within conversations, and that this sequential contingency seems to peak at a fairly young age, when children are engaging in predictable exchanges and social routines.
+
+# Method
+
+## Corpus
+
+We used transcripts of conversations from the Child Language Data Exchange System (CHILDES), a database of child conversation corpora [@macwhinney_childes_2000]. These corpora predominantly record spontaneous conversations between children and their family members, often in the home. We used transcripts from the North American English collection of CHILDES among children 6 months to 60 months old, and filtered these transcripts to include only utterances spoken by the target child or their parents. Overall, our training data included XXX transcripts from XXX children. 
+
+## Model
+
+We used a Hidden Topic Markov Model (HTMM) to extract communicative modes from parent—child conversations [@gruber_hidden_2007]. Topic models represent documents as mixtures of topics, and topics as mixtures of words. For instance, a simple topic model trained on news articles may extract a topic whose distinctive words are "fire", "flood", and "aid" and another whose distinctive words are "speech", "legislation", and "administration". Based on its distribution of words, an article about politicians' provision of disaster relief may be correctly inferred to feature these two topics, among others. Intuitively, the goal of a topic model is to recover the underlying sources—topics—from which the words in a document spring. 
+
+In contrast to a standard topic model, the Hidden Topic Markov Model takes into account the sequential utterance structure of a document, not just its static distribution of words. The HTMM assumes that words within an utterance are of the same topic, and that sequential utterances may be more likely to be of the same topic. It represents topic transitions between utterances in a coarse-grained way: either switch or stay. @gruber_hidden_2007 developed this model and used it to segment machine learning conference papers, showing that the model can distinguish instances of the word "support" in mathematical contexts (describing support vectors) from those in the context of acknowledgments. 
+
+We trained the HTMM on all the utterances in our corpus. Some markers for unintelligible or non-word speech were removed; when this resulted in empty utterances, a 'non-word utterance' token was included to preserve the temporal structure of the dialogue. Typically, function words are removed from corpora before training topic models to aid detection of thematic content. Here, we aim to classify communicative modes underlying utterances rather than thematic topics. We expected function words to be diagnostic of these modes, so included them in our training data.
+
+Topic models require pre-specification of the number of topics. To determine the right number of topics, we trained the model several times with different numbers of topics—5 to 30 topics, in intervals of 5—with Dirichlet parameters of $alpha$ = 1/*k*, where *k* is the number of topics, and $beta$ = 0.01. Each model produced a sequence of the most likely topic assigned to each utterance. Our selection metric was the proportion of other-topic transitions in this sequence: since we aimed to characterize the temporal structure of topic transitions, we wanted to choose a model that had many of transitions between topics rather than long stretches of utterances all assigned to the same topic. However, increasing the number of topics almost necessarily increases the number of other-topic transitions, and may make results harder to interpret as topics proliferate; therefore, we balanced the proportion of other-topic transitions against number of topics. Plotting this proportion across number of topics, we judged 15 topics as an inflection point after which increasing the number of topics had diminishing effect on other-topic transitions; we therefore chose the 15-topic model.
+
+# Results and Discussion
+
+We begin by we show that the model captures some aspects of communicative acts and explore the static distribution of these utterance types. We then examine trajectories of topic use across development among parents and children. Finally, we examine the temporal dynamics of topic use within discourse.
+
+## Topics and their static structure
+
+After training, the model produces a set of topics with associated probability distributions over words. One can conceive of these topics as bags of words, in which some words will be highly likely to be produced and others will be unlikely to be produced. We extracted the most distinctive words from each topic by taking the difference between the likelihood of each word in a given topic and its average likelihood across all topics (Table \ref{fig:topic_table}). 
+
+Using this probability distribution of words within topics, the model also produces a probability distribution over topics for each utterance in the corpus. Note that this assignment of topic probabilities happens at the utterance level, but temporal structure between utterances is not taken into account. Since we aim to characterize communicative acts and not thematic content or conversational topics, the label 'topic' for these types can be misleading; from here on, we will refer to these types as communicative acts rather than topics.
 
 ```{r topic_table, results="asis", fig.env = "figure*", fig.width = 6,  fig.height = 4, cap.cols = 2, fig.cap = "The most distinctive words in each topic. Distinctiveness is measured by the difference between a word's likelihood in the given topic and its average likelihood across all topics."}
 
@@ -107,24 +135,12 @@ tab <- childes_htmm_phi %>%
   pivot_wider(names_from = num, values_from = word)  %>%
   mutate(topic_name = topics) %>% select(topic, topic_name, everything())
 
-
-
-img <- png::readPNG("figs/topic-tab.png")
+img <- png::readPNG(here("writing/figs/topic-tab.png"))
 grid::grid.raster(img)
-
-
 
 ```
 
-## Corpus
-
-We use transcripts of conversations from the Child Language Data Exchange System (CHILDES), a database of child conversation corpora [@macwhinney_childes_2000]. These corpora predominantly record spontaneous conversations between children and their family members, often in the home. We used transcripts from the North American English collection of CHILDES among children 6 months to 60 months old, and filtered these transcripts to include only utterances spoken by the target child or their parents. Overall, our training data included XXX transcripts from XXX children. 
-
-## Model
-
-We use a Hidden Topic Markov Model [@gruber_hidden_2007] to extract communicative modes from parent—child conversations. Topic models represent documents as mixtures of topics, and topics as mixtures of words. For instance, a simple topic model trained on news articles may extract a topic whose distinctive words are "fire", "flood", and "aid" and another whose distinctive words are "speech", "legislation", and "administration". Based on its distribution of words, an article about politicians' provision of disaster relief may be correctly inferred to feature these two topics, among others. Intuitively, the goal of a topic model is to recover the underlying sources—topics—from which the words in a document spring. 
-
-The Hidden Topic Markov Model (HTMM) differs from a simple topic model in that it takes into account the sequential utterance structure of a document, not just its static distribution of words. The HTMM assumes that words within an utterance are of the same topic, and that sequential utterances may be more likely to be of the same topic. It represents topic transitions between utterances in a coarse-grained way: either switch or stay. @gruber_hidden_2007 developed this model and used it to segment machine learning conference papers, showing that the model can distinguish instances of the word "support" in mathematical contexts (describing support vectors) from those in the context of acknowledgements. 
+The most distinctive words of each communicative act in the model, as measured by difference between a word's probability within a type of act and its average probability across all act types, are shown in Table \ref{fig:topic_table}. Although act type assignments are probabilistic, we examined these these most distinctive words and looking at utterances in each act type to produce subjective labels that capture the gist of each automatically identified topic for clarity of exposition.
 
 ```{r snippet_table, results="asis", tab.env = "table"}
 
@@ -161,39 +177,33 @@ snippet <- childes_htmm_pdwz %>%
 snippet_tab <- xtable(snippet, label = "tab:snippet_table",
          hline.after = c(-1, 0),
          caption = "Three examples of the same communicative act sequence (5, 12, 4, 5) in conversations from different children at different ages. Though they involve different topical content, they follow a similar communicative pattern: a suggestion or request regarding action and location; an affirmative or negative response; an evaluative statement or question; and another suggestion regarding action and location.")
-# 
-# extra_sequences = c(4172,5798,5985,6094)
-# 
 print(snippet_tab, type = "latex", comment = F, table.placement = "tb", 
        floating = TRUE,
        floating.environment = "table*",
        include.rownames = FALSE)
-# 
-# 
-# tab2 <- childes_htmm_pdwz %>%
-#   filter((transcript_id == 5657 & utterance_order %in% c(64:73)) |
-#            (transcript_id == 6910 & utterance_order %in% c(4:13)) |
-#            (transcript_id == 5772 & utterance_order %in% c(678:688)) )%>%
-#   select(speaker_role, gloss, max_topic, age_in_months, transcript_id, utterance_order) %>%
-#   group_by(age_in_months) %>% mutate(utterance_order = 1:n()) %>% ungroup() %>%
-#   dplyr::rename(age = age_in_months, topic = max_topic) %>%
-#   arrange(age, utterance_order) %>%
-#   mutate(age = as.character(age)) %>%
-#   select(age, speaker_role, topic, gloss) %>%
-#   xtable()
+```
+
+The conversational turns it produces are reasonable! See Table \ref{tab:snippet_table}
+
+
+## Use of communicative acts over development
+
+```{r entropy-par-child}
+
+num_topics <- n_distinct(childes_htmm_pdwz$max_topic)
+topic_nums <- c(1:num_topics)
+topic_probs <- paste0("topic_", topic_nums)
+
+topic_entropies <- read_csv(here("data/childes_topic_entropies.csv"))
+word_entropies <- read_csv(here("data/childes_word_entropies.csv"))
 
 ```
 
-We trained the HTMM on all the utterances in our corpus. Some markers for unintelligible or non-word speech were removed; when this resulted in empty utterances, a 'non-word utterance' token was included to preserve the temporal structure of the dialogue. Typically, function words are removed from corpora before training topic models to aid detection of thematic content. Here, we aim to classify communicative modes underlying utterances rather than thematic topics. We expect function words to be diagnostic of these modes, so include them in our training data.
-
-Topic models require pre-specification of the number of topics. To determine the right number of topics, we trained the model several times with different numbers of topics—5 to 30 topics, in intervals of 5—with Dirichlet parameters of $alpha$ = 1/*k*, where *k* is the number of topics, and $beta$ = 0.01. Each model produces a sequence of the most likely topic assigned to each utterance. Our selection metric was the proportion of other-topic transitions in this sequence: since we aim to characterize the temporal structure of topic transitions, we want to choose a model that has lots of transitions between topics rather than long stretches of utterances all assigned to the same topic. However, increasing the number of topics will almost necessarily increase the number of other-topic transitions, and may make the results harder to interpret as topics proliferate; therefore, we must balance the proportion of other-topic transitions against number of topics. Plotting this proportion across number of topics, we judged 15 topics as an inflection point after which increasing the number of topics had diminishing effect on other-topic transitions; we therefore chose the 15-topic model.
-
-After training, the model produces a set of topics with associated probability distributions over words. One can conceive of these topics as bags of words, in which some words will be highly likely to be produced and others will be unlikely to be produced. We extract the most distinctive words from each topic by taking the difference between the likelihood of each word in a given topic and its average likelihood across all topics (Table \ref{fig:topic_table}). Using this probability distribution of words within topics, the model also produces a probability distribution over topics for each utterance in the corpus. Note that this assignment of topic probabilities happens at the utterance level, but temporal structure between utterances is not taken into account. Since we aim to characterize communicative acts and not thematic content or conversational topics, the label 'topic' for these types can be misleading; from here on, we will refer to these types as communicative acts rather than topics.
 
 ```{r branching_out_plot, fig.height = 3.5, fig.width = 7, fig.env = "figure*", fig.align = "left", fig.cap = "The proportion of communicative acts of each type produced by children and parents across development."}
-topics <- c("mental states", "labeling", "counting", "evaluation", "action planning",
-            "non-present events", "??", "requests and provision", "attending and questioning", 
-            "location", "people's names and greetings", "backchannels and interjections",
+topics <- c("mental states", "labeling", "counting", "evaluation", "proposed actions",
+            "absent events", "misc", "requests", "knowledge questions", 
+            "location", "social routines", "backchannels",
             "description", "storytelling", "body routines")
 
 branching <- childes_htmm_pdwz %>%
@@ -222,35 +232,16 @@ ggplot(branching, aes(x = age_bin, y = n, group = max_topic,
   labs(x = "age (months)", y = "communicative act proportion")
 ```
 
-In the first part of this paper, we will show that the model captures some aspects of communicative acts and explore the static distribution of these utterance types. In the second part, we will examine trajectories of topic use across development among parents and children. In the third part, we will examine the temporal dynamics of topic use within discourse.
-
-
-## Topics and their static structure
-
-The most distinctive words of each communicative act in the model, as measured by difference between a word's probability within a type of act and its average probability across all act types, are shown in Table \ref{tab:topic_table}. Based on these most distinctive words and looking at utterances in each act type, we labeled each act type to make findings easier to convey. Keep in mind, however, that these act type assignments are probabilistic, and that the labels of these kinds are subjective; these types are not ironclad. The communicative act types are as follows: mental states and testimony, labeling and directing attention, counting, evaluations and praise, proposed actions, non-present events, explanations ??, requests and provision, knowledge questions, location, social routines, backchannels and interjections, description, storytelling, and body routines.
-
-```{r entropy-par-child}
-
-num_topics <- n_distinct(childes_htmm_pdwz$max_topic)
-topic_nums <- c(1:num_topics)
-topic_probs <- paste0("topic_", topic_nums)
-
-topic_entropies <- read_csv(here("data/childes_topic_entropies.csv"))
-word_entropies <- read_csv(here("data/childes_word_entropies.csv"))
-
-```
-
-
-
-One way to characterize the diversity of communicative acts a person engages in is to measure the entropy of their communicative acts. Overall, parents' communicative acts have higher entropy than children's. Children's communicative act entropy increases drastically over development between 6 and around 24 months, and remains relatively stable across the rest of our age range, as shown in Figure \ref{fig:entropy_plot}. Our communicative acts are therefore capturing some capacity that becomes more adult-like across development. [more description / perhaps some stats] [this paragraph could be moved to part 2.]
-
-Beyond becoming more complex across development, the ability to engage in a variety of communicative acts might reasonably be expected to correlate with other measures of language ability. Indeed, @snow_learning_1996 found that the number of speech act types children use correlates highly with the number of word types they use, but does not consistently correlate with mean length of utterance (MLU). We replicate these findings here: children's number of communicative act types produced correlate with their word types produced (*stats*) and does not consistently correlate with MLU (*stats*). Children's diversity of communicative acts also correlates with their parents' diversity of communicative acts, even when controlling for age (*stats*)
-
-## Use of communicative acts over development
-
 Children's use of communicative acts changes drastically as they grow (Figure \ref{fig:branching_out_plot}). Early on, children's utterances are predominantly backchannels, interjections, and affirmations or negations (e.g., "yeah", "no", "uh huh"). By around 20 months of age, social routines such as greetings and naming family members (e.g., "hi", "bye", "mommy") displace backchannels to become a substantial part of children's repertoire. Around the same age, an increasing proportion of children's utterances direct attention to or label things in the environment (e.g., "what's that?", "there's a..."). Parents also increasingly use these labeling utterances when their children are around 15-30 months old; after about 30 months, these utterances diminish in both parent and child speech. 
 
-Across our observed age range, both parents and children consistently increase the proportion of their statements about mental states and testimony (e.g., "know", "think", "said"). This is consistent with prior work showing an increase in mental state talk over the 3- to 5-year-old age range, which is correlated with theory of mind task performance [insert cite Hughes & Dunn, 1998; de Villiers 2000]. It may also reflect growing mastery of the complex syntax required to produce embedded constructions about mental states (e.g., "She thinks it will rain.").
+Across our observed age range, both parents and children consistently increase the proportion of their statements about mental states and testimony (e.g., "know", "think", "said"). This is consistent with prior work showing an increase in mental state talk over the 3- to 5-year-old age range, which is correlated with theory of mind task performance [@hughes1998], de-villiers2000]. It may also reflect growing mastery of the complex syntax required to produce embedded constructions about mental states (e.g., "She thinks it will rain.").
+
+
+One way to characterize the diversity of communicative acts a person engages in is to measure the entropy of their communicative acts. Overall, parents' communicative acts had higher entropy than children's. Children's communicative act entropy increased drastically over development between 6 and around 24 months, and remained relatively stable across the rest of our age range, as shown in Figure \ref{fig:entropy_plot}. 
+
+Our automatically-identified communicative acts are therefore capturing some capacity that becomes more adult-like across development. [more description / perhaps some stats] [this paragraph could be moved to part 2.]
+
+Beyond becoming more complex across development, the ability to engage in a variety of communicative acts might reasonably be expected to correlate with other measures of language ability. Indeed, @snow_learning_1996 found that the number of speech act types children use correlates highly with the number of word types they use, but does not consistently correlate with mean length of utterance (MLU). We replicate these findings here: children's number of communicative act types produced correlate with their word types produced (*stats*) and does not consistently correlate with MLU (*stats*). Children's diversity of communicative acts also correlates with their parents' diversity of communicative acts, even when controlling for age (*stats*)
 
 Notably, children at the lowest end of our age range start with at least some representation of several communicative act types, and expand on their repertoire rapidly. They also reach adult-like levels of diversity in communicative act production quickly, by around 36 months—before they reach comparably adult-like levels of vocabulary production, as shown in Figure \ref{fig:entropy_plot}. 
 
@@ -326,7 +317,7 @@ Over development, children gain the ability to engage in more structured dialogu
 
 To calculate the mutual information between parents' and children's utterances, we use the full distribution of communicative act probabilities for each utterance produced by the model. These probabilities are averaged within turns; that is, if a child produced four utterances in a row, the probabilities are averaged to produce one probability per act type per turn. We then compute conditional probabilities for each current act type given each prior act type. These conditional probabilities are used to calculate mutual information. We calculate mutual information values for the parent's utterance given the child's utterance, the child's utterance given the parent's utterance, and the child's utterance given their own prior utterance (their own last turn).
 
-```{r mi, fig.env = "figure*", fig.width = 3.5, fig.height = 3}
+```{r mi, fig.cap = "Mutual information between parents and children's communicative acts over development."}
 mutual_information %>%
   ggplot(aes(age_bin, mi, color = type)) +
   geom_point() +
@@ -353,21 +344,14 @@ We also lose nuance in the conversational context and non-verbal aspects of comm
 Nevertheless, the communicative acts extracted by the model show regularities at multiple levels that suggest they reflect communicative function. Children start off with a few act types at the beginning of our age range, and quickly branch out into others as they grow. Different act types show different developmental trajectories: children produce lots of interjections and backchannels early on, soon extending into social routines; parents and children increasingly engage in directing attention and labeling when children are 2 to 3 years old, and less so thereafter; talk about mental states and testimony increases among children and parents consistently across our age range. Children's diversity of communicative acts is correlated with their vocabulary, and with their parent's diversity of communicative acts. Finally, parents and children produce these acts contingently, depending on the prior utterance, and our findings suggest a period of heightened contingency before children reach an adult-like diversity of these acts. Overall, our approach offers a way to take advantage of large corpora of child conversations in the study of children's use of communicative acts across development.
 
 
-
-
-```{r conditional_prob_plot, fig.env = "figure*", fig.width = 7, fig.height = 3, fig.pos = "b"}
-cprobs_fig <- conditional_probs %>%
+```{r conditional_prob_plot, fig.env = "figure*", fig.width = 7, fig.height = 3, cap.cols = 2, fig.cap = "(A) "}
+conditional_probs %>%
   mutate(age_median = if_else(age_bin <= 18, "younger", "older")) %>% 
   pivot_longer(cols = topic_probs, names_to = "current_topic", values_to = "prob") %>%
   ggplot(aes(x=prior_topic, y=current_topic, fill=log(prob))) + 
   geom_tile() +
   facet_grid(speaker~age_median, scales = "free") +
   scale_fill_gradientn(colours = viridis(256, option = "D"))
-
-
-print(cprobs_fig, fig.align = "left", fig.pos="b", 
-      environment = "figure*")
-
 ```
 
 # References 
