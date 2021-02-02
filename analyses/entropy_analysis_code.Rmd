@@ -82,9 +82,11 @@ par_child_entropies <- topic_entropy %>%
 ```{r word-counts}
 
 word_counts <- childes_htmm_pdwz %>%
-  select(gloss, transcript_id, age_in_months, target_child_age, speaker_role) %>%
-  mutate(word = strsplit(as.character(gloss), " ")) %>% 
-  unnest(word) %>%
+  select(gloss, part_of_speech, transcript_id, 
+         age_in_months, target_child_age, speaker_role) %>%
+  mutate(word = strsplit(as.character(gloss), " "),
+         pos = strsplit(as.character(part_of_speech), " ")) %>% 
+  unnest(c(word, pos)) %>%
   group_by(age_in_months, target_child_age, transcript_id, speaker_role, word) %>%
   summarise(n = n()) %>%
   ungroup()
@@ -128,6 +130,6 @@ par_child_word_entropies <- word_entropy %>%
 ```
 
 ```{r write-data}
-write_csv(par_child_entropies, here("data/childes_topic_entropies.csv"))
-write_csv(par_child_word_entropies, here("data/childes_word_entropies.csv"))
+#write_csv(par_child_entropies, here("data/childes_topic_entropies.csv"))
+#write_csv(par_child_word_entropies, here("data/childes_word_entropies.csv"))
 ```
