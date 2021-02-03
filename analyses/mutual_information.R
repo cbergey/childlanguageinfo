@@ -197,12 +197,25 @@ get_mis <- function(transcripts) {
   return(all_mis)
 }
 
-sample_mis <- get_mis(c(sample_n(all_transcripts, 20) %>% pull())) 
-
+ 
 
 all_transcripts <- chunks_nested %>% ungroup() %>%
   select(transcript_id) %>%
   distinct(transcript_id)
+
+n_transcripts <- all_transcripts %>% nrow()
+
+transcript_lists <- replicate(500, c(sample_n(all_transcripts, n_transcripts, replace = TRUE)))
+
+mis <- map(transcript_lists, get_mis)
+
+mis_df <- do.call(rbind, mis)
+
+mi_cis <- mis_df %>%
+  group_by(age_bin, type) %>%
+  summarise(mean = mean(mi), sd = sd(mi),
+              ci_dev = qnorm(0.975)*sd/sqrt(500)) %>%
+  mutate(ci_upper = mean + ci_dev, ci_lower = mean - ci_dev)
 
 conditional_probs_normed %>%
   pivot_longer(cols = topic_probs, names_to = "current_topic", values_to = "prob") %>%
@@ -211,5 +224,8 @@ conditional_probs_normed %>%
   facet_grid(speaker~age_bin, scales = "free") 
 
 
+
 #write_csv(conditional_probs_normed, here("data/conditional_probs.csv"))
 #write_csv(all_mis, here("data/mutual_information_vals.csv"))
+#write_csv(mi_cis, here("data/mutual_information_cis.csv"))
+

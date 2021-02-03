@@ -116,7 +116,7 @@ After training, the model produces a set of topics with associated probability d
 
 Using this probability distribution of words within topics, the model also produces a probability distribution over topics for each utterance in the corpus. Note that this assignment of topic probabilities happens at the utterance level, but temporal structure between utterances is not taken into account. Since we aim to characterize communicative acts and not thematic content or conversational topics, the label 'topic' for these types can be misleading; from here on, we will refer to these types as communicative acts rather than topics.
 
-```{r topic_table, results="asis", fig.env = "figure*", fig.width = 6,  fig.height = 4, cap.cols = 2, fig.cap = "The most distinctive words in each topic. Distinctiveness is measured by the difference between a word's likelihood in the given topic and its average likelihood across all topics."}
+```{r topic_table, results="asis", fig.env = "figure*", fig.width = 5,  fig.height = 3.5, cap.cols = 2, fig.cap = "The most distinctive words in each topic. Distinctiveness is measured by the difference between a word's likelihood in the given topic and its average likelihood across all topics."}
 
 topics <- c("mental states", "labeling", "counting", "evaluation", "proposed actions",
             "non-present events", "??", "requests", "knowledge questions", 
@@ -299,7 +299,8 @@ type_annotations <- tibble(age = 40, entropy = c(6, 4),
 ggplot(type_entropies, aes(age, entropy, color = speaker_role, 
                            group = interaction(entropy_type, speaker_role))) +
   geom_jitter(alpha = 0.3, size = 0.1) +
-  stat_smooth(formula = y ~ log(x), aes(linetype = "speaker_role")) +
+  geom_smooth() +
+  #stat_smooth(formula = y ~ log(x), aes(linetype = "speaker_role")) +
   ylab("Entropy") +
   xlab("Age") +
   ggtitle("Entropy of communicative acts and words") +
@@ -319,14 +320,15 @@ Over development, children gain the ability to engage in more structured dialogu
 To calculate the mutual information between parents' and children's utterances, we use the full distribution of communicative act probabilities for each utterance produced by the model. These probabilities are averaged within turns; that is, if a child produced four utterances in a row, the probabilities are averaged to produce one probability per act type per turn. We then compute conditional probabilities for each current act type given each prior act type. These conditional probabilities are used to calculate mutual information. We calculate mutual information values for the parent's utterance given the child's utterance, the child's utterance given the parent's utterance, and the child's utterance given their own prior utterance (their own last turn).
 
 ```{r mi, fig.cap = "Mutual information between parents and children's communicative acts over development."}
-mutual_information %>%
-  ggplot(aes(age_bin, mi, color = type)) +
-  geom_point() +
-  geom_smooth() +
+mutual_info_cis <- read_csv(here("data/mutual_information_cis.csv"))
+mutual_info_cis %>%
+  ggplot(aes(age_bin, mean, color = type, group = type)) +
+  geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)) +
+  geom_line() +
   ylab("Mutual Information") +
   xlab("Age") +
   ggtitle("") +
-  theme(legend.position = c(0.8, 0.2)) 
+  theme(legend.position = c(0.8, 0.6)) 
 ```
 
 When children are young, mutual information is highest between the child's current utterance and their own last utterance [\ref{fig:mi}]. One way to interpret this is that the child is on their own conversational track, steered less by what their conversational partner just said than what they themselves said prior. By around 24 months, this tendency lessens considerably, but children remain more predictable based on their own prior utterances than their parents' utterances across our age range.
