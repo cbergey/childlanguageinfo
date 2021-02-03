@@ -110,7 +110,7 @@ Topic models require pre-specification of the number of topics. To determine the
 
 We begin by we show that the model captures some aspects of communicative acts and explore the static distribution of these utterance types. We then examine trajectories of topic use across development among parents and children. Finally, we examine the temporal dynamics of topic use within discourse.
 
-## Topics and their static structure
+## The structure of communicative acts
 
 After training, the model produces a set of topics with associated probability distributions over words. One can conceive of these topics as bags of words, in which some words will be highly likely to be produced and others will be unlikely to be produced. We extracted the most distinctive words from each topic by taking the difference between the likelihood of each word in a given topic and its average likelihood across all topics (Table \ref{fig:topic_table}). 
 
@@ -240,14 +240,14 @@ topic_probs_cor_plot <- par_child_topic_probs
   geom_smooth() +
   facet_wrap(~max_topic)
 
-par_child_topic_count_correlation <- cor.test(branching_wide$Child, branching_wide$Parent)
+#par_child_topic_count_correlation <- cor.test(branching_wide$Child, branching_wide$Parent)
 
 branching_annotations <- tibble(max_topic = 1:num_topics,
                                 topic_name = topics,
-                                age_bin = c(60, 30, 48, 53, 50, 55, 50,
-                                            45, 50, 35, 50, 50, 38, 55, 40),
-                                n = c(.95, .9, .8, .74, .64, .57, .48, .50, 
-                                      .45, .37, .3, .2, .13, .07, .02),
+                                age_bin = c(60, 30, 48, 53, 50, 53, 50,
+                                            38, 38, 35, 27, 50, 38, 55, 40),
+                                n = c(.95, .9, .8, .74, .64, .54, .48, .50, 
+                                      .45, .36, .3, .2, .13, .07, .02),
                                 speaker_role = "Parent")
 
 ggplot(branching, aes(x = age_bin, y = n, group = max_topic, 
@@ -262,8 +262,7 @@ ggplot(branching, aes(x = age_bin, y = n, group = max_topic,
 
 Children's use of communicative acts changes drastically as they grow (Figure \ref{fig:branching_out_plot}). Early on, children's utterances are predominantly backchannels, interjections, and affirmations or negations (e.g., "yeah", "no", "uh huh"). By around 20 months of age, social routines such as greetings and naming family members (e.g., "hi", "bye", "mommy") displace backchannels to become a substantial part of children's repertoire. Around the same age, an increasing proportion of children's utterances direct attention to or label things in the environment (e.g., "what's that?", "there's a..."). Parents also increasingly use these labeling utterances when their children are around 15-30 months old; after about 30 months, these utterances diminish in both parent and child speech. 
 
-Across our observed age range, both parents and children consistently increase the proportion of their statements about mental states and testimony (e.g., "know", "think", "said"). This is consistent with prior work showing an increase in mental state talk over the 3- to 5-year-old age range, which is correlated with theory of mind task performance [@hughes1998], @de-villiers2000]. It may also reflect growing mastery of the complex syntax required to produce embedded constructions about mental states (e.g., "She thinks it will rain.").
-
+Across our observed age range, both parents and children consistently increase the proportion of their statements about mental states and testimony (e.g., "know", "think", "said"). This is consistent with prior work showing an increase in mental state talk over the 3- to 5-year-old age range, which is correlated with theory of mind task performance [@hughes1998; @de-villiers2000]. It may also reflect growing mastery of the complex syntax required to produce embedded constructions about mental states (e.g., "She thinks it will rain.").
 
 One way to characterize the diversity of communicative acts a person engages in is to measure the entropy of their communicative acts. Overall, parents' communicative acts had higher entropy than children's. Children's communicative act entropy increased drastically over development between 6 and around 24 months, and remained relatively stable across the rest of our age range, as shown in Figure \ref{fig:entropy_plot}. 
 
@@ -338,35 +337,39 @@ ggplot(type_entropies, aes(age, entropy, color = speaker_role,
 
 ```
 
+## Part 3: Dynamics of communicative acts over development
 
-
-## Part 3: Dynamics of communicative acts in conversation
-
-Over development, children gain the ability to engage in more structured dialogue, eventually becoming able to respond appropriately and contingently to their conversational partner [cite??]. To characterize the temporal dynamics of communicative acts in conversation, we turn our attention to the transitions between utterances in parent-child conversations. One way to measure how contingent parents' and children's utterances are on each other is to calculate their mutual information, a measure of how much knowing one piece of information (a prior utterance) reduces uncertainty about another (the current utterance). However, discourse with adult-like structure may not maximize mutual information: because discourse has recursive structure, raising topics and closing them in an embedded way, it may not be highly regular at the level of utterance-to-utterance transitions [cite??]. Mutual information between sequential utterances is maximized when utterances are highly predictable based only on the utterance prior, and can be dampened either because contingency is weak or because higher-order structure is at play.
+Over development, children gain the ability to engage in more structured dialogue, eventually becoming able to respond appropriately and contingently to their conversational partner [@bruner1985]. To characterize the temporal dynamics of communicative acts in conversation, we turn our attention to the transitions between utterances in parent-child conversations. One way to measure how contingent parents' and children's utterances are on each other is to calculate their mutual information, a measure of how much knowing one piece of information (a prior utterance) reduces uncertainty about another (the current utterance). However, discourse with adult-like structure may not maximize mutual information: because discourse has recursive structure, raising topics and closing them in an embedded way, it may not be highly regular at the level of utterance-to-utterance transitions [cite??]. Mutual information between sequential utterances is maximized when utterances are highly predictable based only on the utterance prior, and can be dampened either because contingency is weak or because higher-order structure is at play.
 
 To calculate the mutual information between parents' and children's utterances, we use the full distribution of communicative act probabilities for each utterance produced by the model. These probabilities are averaged within turns; that is, if a child produced four utterances in a row, the probabilities are averaged to produce one probability per act type per turn. We then compute conditional probabilities for each current act type given each prior act type. These conditional probabilities are used to calculate mutual information. We calculate mutual information values for the parent's utterance given the child's utterance, the child's utterance given the parent's utterance, and the child's utterance given their own prior utterance (their own last turn).
 
 ```{r mi, fig.cap = "Mutual information between parents and children's communicative acts over development."}
+mi_annotations <- tibble(age_bin = c(20, 26, 26), 
+                         type = c("Child | Child", "Parent | Child",
+                                  "Child | Parent"),
+                         mi = c(.3, .2, .08))
+
 mutual_information %>%
+  mutate(type = case_when(type == "child_given_child" ~ "Child | Child",
+                          type == "parent_given_child" ~ "Parent | Child",
+                          type == "child_given_parent" ~ "Child | Parent")) %>%
   ggplot(aes(age_bin, mi, color = type, group = type)) +
   geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)) +
   geom_line() +
   ylab("Mutual Information (bits)") +
   xlab("Age") +
   ggtitle("") +
-  theme(legend.position = c(0.8, 0.6)) 
+  theme(legend.position = "none") +
+  geom_text(aes(label = type), data = mi_annotations)
 ```
 
 When children are young, mutual information is highest between the child's current utterance and their own last utterance [\ref{fig:mi}]. One way to interpret this is that the child is on their own conversational track, steered less by what their conversational partner just said than what they themselves said prior. By around 24 months, this tendency lessens considerably, but children remain more predictable based on their own prior utterances than their parents' utterances across our age range.
 
-Interestingly, there seems to be an increase in mutual information in all three of our measures—parents given children, children given parents, and children given children—from the beginning of our age range peaking at about 14-20 months, after which mutual information declines. Though this is an exploratory finding, it points to the interesting possibility that parents and children interact most contingently when children are still quite young. That is, at the youngest ages, there may be low mutual information between parents and children's sequential utterances because of disorganized interaction; mutual information may then increase as sequences become more orderly, but discourse is not necessarily structured on longer timescales; and mutual information may fall again as discourse structure emerges that is not captured in sequential utterance transitions.
-
-
-
+Interestingly, there seems to be an increase in mutual information in all three of our measures—-(parents $\vert$ children, children $\vert$ parents, and children $\vert$ children—-from the beginning of our age range peaking at about 14-20 months, after which mutual information declines. Though this is an exploratory finding, it points to the possibility that parents and children interact most contingently when children are still quite young. That is, at the youngest ages, there may be low mutual information between parents and children's sequential utterances because of disorganized interaction; mutual information may then increase as sequences become more orderly, but discourse is not necessarily structured on longer timescales; and mutual information may fall again as discourse structure emerges that is not captured in sequential utterance transitions.
 
 # Discussion
 
-In this paper, we present one approach to characterizing children's communicative acts on a large scale. In doing so, we gain the ability to examine the communication of more children in more contexts and across a wider age range than afforded by hand coding, and are able to examine patterns of usage that only become clear across such a wide range of data. 
+In this paper, we present an method for characterizing children's communicative acts on a large scale. In doing so, we gain the ability to examine the communication of more children in more contexts and across a wider age range than afforded by hand coding, and to examine patterns of usage that only become clear across such a wide range of data. 
 
 We also lose nuance in the conversational context and non-verbal aspects of communication. Children can achieve communicative goals even before they can use language to do so: they can use gestures and vocalizations both to request a desired object and to call a person's attention to something in the environment [@bates_acquisition_1975].  Studies of children's early one-word utterances demonstrate that they can use the same word to fulfill multiple communicative goals [@dore_1975].
 
