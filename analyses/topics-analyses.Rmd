@@ -36,11 +36,11 @@ childes_htmm_pdwz <- childes_htmm_pdwz %>%
                                 "CHI", speaker_code))
 
 topic_count_vector <- childes_htmm_pdwz %>%
-  group_by(max_topic_15, transcript_id, age_in_months, speaker_code) %>%
+  group_by(max_topic_15, transcript_id, age_in_months, speaker_role) %>%
   count() %>% ungroup()
 
 counts <- topic_count_vector %>%
-  mutate(name = paste0(transcript_id, speaker_code)) 
+  mutate(name = paste0(transcript_id, speaker_role)) 
 
 counts <- split(counts$n, counts$name)
 
@@ -65,23 +65,22 @@ topic_entropies <- py$entropies_dict %>%
   mutate(name = str_remove(name, "X"))
 
 topic_entropy <- topic_count_vector %>% 
-  mutate(name = paste0(transcript_id, speaker_code)) %>%
+  mutate(name = paste0(transcript_id, speaker_role)) %>%
   left_join(topic_entropies, by = "name")
 
 par_child_entropies <- topic_entropy %>%
-  group_by(transcript_id, speaker_code) %>%
+  group_by(transcript_id, speaker_role) %>%
   summarise(entropy = first(entropy), age = first(age_in_months)) %>%
-  group_by(age, speaker_code) %>%
+  group_by(age, speaker_role) %>%
   mutate(entropy_random = entropy[sample(row_number())]) %>%
   ungroup()
 
 ```
 
 ```{r graph_entropies_over_age}
-topic_entropy %>%
-  filter(speaker_code == "CHI" | speaker_code == "MOT") %>%
-  ggplot(aes(age_in_months, entropy, color = speaker_code)) +
-  geom_point(alpha = 0.08) +
+par_child_entropies %>%
+  ggplot(aes(age, entropy, color = speaker_role)) +
+  geom_point(alpha = 0.2) +
   geom_smooth() +
   ylab("Entropy") +
   xlab("Age") +
@@ -93,12 +92,14 @@ Mother and child topic entropies over age.
 
 ```{r graph_random_entropies}
 par_child_entropies %>%
-  pivot_longer(cols = c(entropy, entropy_random), names_to = "is_random", values_to = "entropy") %>%
-  pivot_wider(values_from = entropy, names_from = speaker_code) %>%
+  pivot_longer(cols = c(entropy, entropy_random), names_to = "is_random", 
+               values_to = "entropy") %>%
+  pivot_wider(values_from = entropy, names_from = speaker_role) %>%
   ggplot(aes(x = MOT, y = CHI, color = age)) +
   geom_point() +
   geom_smooth(method = "lm") +
   facet_wrap(~is_random)
+
 ```
 
 Correlation between mother and child entropies (left) and the same correlation when speakers' entropies are swapped within speaker identity (among mothers, among children) within a 1-month age range (right).
@@ -117,12 +118,100 @@ CHILDES has some codes for type of utterance that are really coarse-grained--dec
 
 ```{r branching-out}
 childes_htmm_pdwz %>%
-  dplyr::filter(speaker_code == "CHI" | speaker_code == "MOT") %>%
+  filter(speaker_role == "Mother" | speaker_role == "Target_Child") %>%
   ggplot(aes(x = age_in_months, fill = as.factor(max_topic_15))) +
   geom_bar(position = "fill") +
-  facet_wrap(~speaker_code) +
+  facet_wrap(~speaker_role) +
   theme_classic() 
 ```
 
 How do parents and children change their topic use over time? How do children branch out into using new kinds of utterances?
+
+```{r topics-vs-words}
+
+word_counts <- childes_htmm_pdwz %>%
+  select(gloss, transcript_id, age_in_months, speaker_code) %>%
+  mutate(word = strsplit(as.character(gloss), " ")) %>% 
+  unnest(word) %>%
+  group_by(age_in_months, transcript_id, speaker_code, word) %>%
+  summarise(n = n()) %>%
+  ungroup()
+
+num_words <- word_counts %>% distinct(word) %>% nrow()
+
+word_counts_v <- word_counts %>%
+  mutate(name = paste0(transcript_id, speaker_code)) 
+
+word_counts_v <- split(word_counts_v$n, word_counts_v$name)
+
+```
+
+```{python}
+import ndd
+k_val = r.num_words
+word_entropies_dict = {}
+
+for key, value in r.word_counts_v.items():
+  word_entropies_dict[key] = ndd.entropy(value, k = k_val)
+
+```
+
+```{r}
+word_entropies <- py$word_entropies_dict %>%
+  as.data.frame() %>% t() %>% as.data.frame() %>%
+  rownames_to_column() %>%
+  dplyr::rename(name = rowname, entropy = V1) %>%
+  mutate(name = str_remove(name, "X"))
+
+word_entropy <- word_counts %>% 
+  mutate(name = paste0(transcript_id, speaker_code)) %>%
+  left_join(word_entropies, by = "name")
+
+par_child_word_entropies <- word_entropy %>%
+  group_by(transcript_id, speaker_code) %>%
+  summarise(entropy = first(entropy), age = first(age_in_months)) %>%
+  group_by(age, speaker_code) %>%
+  mutate(entropy_random = entropy[sample(row_number())]) %>%
+  ungroup()
+
+```
+
+```{r graph_word_entropies_over_age}
+par_child_word_entropies %>%
+  filter(speaker_code == "CHI" | speaker_code == "MOT" | speaker_code == "FAT") %>%
+  ggplot(aes(age, entropy, color = speaker_code)) +
+  geom_point(alpha = 0.08) +
+  geom_smooth() +
+  ylab("Entropy") +
+  xlab("Age") +
+  ggtitle("Entropy of Words") +
+  theme_classic()
+```
+
+
+
+```{r}
+childes_htmm_pdwz <- childes_htmm_pdwz %>%
+  group_by(transcript_id) %>%
+  mutate(lag_topic = lag(max_topic_15), lead_topic = lead(max_topic_15)) %>%
+  mutate(trigram = paste(lag_topic, max_topic_15, lead_topic, sep = "_")) %>%
+  ungroup()
+
+trigram_n <- childes_htmm_pdwz %>%
+  group_by(age_in_months, trigram) %>%
+  summarise(n= n()) 
+
+trigram_n %>%
+  ggplot(aes(x = trigram, y = n)) +
+  geom_histogram()
+
+topic_count_vector %>%
+  filter(speaker_code == "CHI" | speaker_code == "MOT" | speaker_code == "FAT") %>%
+  mutate(age_bin = cut(age_in_months, breaks = 10)) %>%
+  ggplot(aes(x = max_topic_15)) +
+  geom_histogram(binwidth = 1) +
+  facet_grid(speaker_code~age_bin, scale = "free")
+```
+
+
 

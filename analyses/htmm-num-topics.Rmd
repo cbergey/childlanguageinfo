@@ -187,26 +187,32 @@ read_pdwz_vals <- function(filename, just_max = TRUE, get_ids = FALSE) {
 
 filenames <- list.files(path=here("data/childes_htmm"),
                         pattern=".*pdwz", full.names = FALSE)
-pdwz_all <- do.call(cbind,lapply(filenames,read_pdwz_vals))
+#pdwz_15 <- do.call(cbind,lapply(c("childes_gloss_15.pdwz"), read_pdwz_vals, just_max = FALSE))
+pdwz_all <- do.call(cbind,lapply(filenames, read_pdwz_vals))
 ids <- read_pdwz_vals(filenames[1], get_ids = TRUE)
 pdwz_all <- cbind(pdwz_all, ids)
 
+# pdwz_15$max_topic <- apply(pdwz_15 %>% select(topics), 1, which.max)
+# pdwz_15$max_topic_prob <- apply(pdwz_15 %>% select(topics), 1, max)
+# pdwz_15$max_topic_star <- apply(pdwz_15 %>% select(topics_star), 1, which.max)
+# pdwz_15$max_topic_prob_star <- apply(pdwz_15 %>% select(topics_star), 1, max)
 
-childes_htmm_pdwz <- childes_htmm %>%
+
+childes_htmm_all <- childes_htmm %>%
   select(id, speaker_id, utterance_order, transcript_id, corpus_id, gloss,
          num_tokens, stem, part_of_speech, speaker_code, speaker_name,
          speaker_role, target_child_id, target_child_age, target_child_name,
          target_child_sex, type, collection_id, collection_name, num_morphemes,
          language, corpus_name, utt_parse) %>%
   group_by(transcript_id) %>%
-  mutate(doc_id = group_indices(),
+  mutate(doc_id = cur_group_id(),
          utt_id = row_number(transcript_id)) %>%
   ungroup() %>%
   left_join(pdwz_all, by = c("doc_id", "utt_id"))
 
 
 #write_feather(childes_htmm_pdwz, here("data/childes_htmm_all_models.feather"))
-  
+#write_feather(childes_htmm_15, here("data/childes_htmm_15.feather"))
 #write_csv(phi_vals, here("data/childes_phi_vals_25.csv"))
 #write_csv(pdwz_vals, here("data/childes_pdwz_vals_25.csv"))
 ```
