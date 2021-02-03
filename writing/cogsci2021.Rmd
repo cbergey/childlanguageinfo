@@ -82,7 +82,7 @@ childes_htmm_pdwz <- childes_htmm_pdwz %>%
 
 From their first utterances, children are not just producing language but *using* it to communicate. A child who can produce only one-word utterances can nonetheless convey several communicative intentions: using variations in pitch, she can use the word *mama* to identify a person, question possession of an object, or to call for someone's presence [@dore_1975]. From 14 to 30 months of age, children quickly branch out from communicative acts like *requesting*, *protesting*, and *marking an event* to *agreeing to an action*, *stating intent*, and asking and answering a variety of questions [@snow_learning_1996]. These close studies of children's conversations, using rich observations to infer intended meaning in context, show that much of the action of language acquisition happens at the level of what children *mean* to say.
 
-**SOMETHING ABOUT HOW WE HAVE LOTS OF MODELS OF LANGUAGE DEVELOPMENT BUT BASICALLY NONE ABOUT COMMUNICATIVE DEVELOPMENT. TO BUILD THESE MODELS, WE NEED TO HAVE SOME DATA TO EXPLAIN!**
+Despite the centrality of communicative goals to even infants' comprehension and production of language [@vouloumanos2012], nearly all of our formal models of language acquire words or syntactic categories rather than communicative expressiveness [e.g. @johnson2007; @siskind1996; although c.f. @bohn2019]. This state of affairs is due in large part because almost all of our large-scale data on language acquisition concern the ages at which children comprehend and produce words or correctly inflect those words according to the grammar of their natural language [@frank2017; @bergmann2018]. We lack a quantitative description of the trajectory of children's communicative capacities, or how they bring these to bear in interactions with their parents and peers.
 
 Describing children's communicative acts on a larger scale, however, is a challenging task. Without nuanced, context-sensitive human coding, communicative acts can be hard to identify. Words are amenable to identification, storage, and tabulation using common computational tools; perhaps due to their ease of use, models of language development have often approached language development at the level of words (i.e., vocabulary learning). The goals and intentions underlying those words are less amenable to such manipulation. We present an approach to modeling the children's communicative acts, working backwards from the words they produce: we model communicative acts as the latent sources from which words emerge, and characterize children's engagement in these acts across development.
 
@@ -140,7 +140,7 @@ grid::grid.raster(img)
 
 ```
 
-The most distinctive words of each communicative act in the model, as measured by difference between a word's probability within a type of act and its average probability across all act types, are shown in Table \ref{fig:topic_table}. Although act type assignments are probabilistic, we examined these these most distinctive words and looking at utterances in each act type to produce subjective labels that capture the gist of each automatically identified topic for clarity of exposition.
+The most distinctive words of each communicative act in the model, as measured by difference between a word's probability within a type of act and its average probability across all act types, are shown in Table \ref{fig:topic_table}. Although act type assignments are probabilistic, we examined these these most distinctive words and looking at utterances in each act type to produce subjective labels that capture the gist of each automatically identified topic for clarity of exposition. Not all communicative act categories are equally coherent, but even these top N words are illuminating. **SAY SOMETHING ABOUT E.G. COUNTING AND BACK CHANNELS**
 
 ```{r snippet_table, results="asis", tab.env = "table"}
 
@@ -183,8 +183,9 @@ print(snippet_tab, type = "latex", comment = F, table.placement = "tb",
        include.rownames = FALSE)
 ```
 
-The conversational turns it produces are reasonable! See Table \ref{tab:snippet_table}
+To further validate our method, we considered sets of exchanges that share the same communicative act sequence but vary in their participants and content. Table \ref{tab:snippet_table} shows three such exchanges between parents and their 23-, 39-, and 57-month-olds. Each exchange begins with a proposed action which receives a back channel, the action is evaluated, and a new action is proposed. Across these three, the words in each act are different, and sometimes even of opposite valence (e.g. "okay" vs. "no no"). The role of the speaker is also--the same act can be produced by both parents and children. Nonetheless, there is a family resemblance across them. 
 
+Bolstered by the coherence of communicative act categories and the resemblance of their sequences, we next provide first qualitative and then quantitative descriptions of parents' and children's production of these acts over development.
 
 ## Use of communicative acts over development
 
@@ -234,7 +235,7 @@ ggplot(branching, aes(x = age_bin, y = n, group = max_topic,
 
 Children's use of communicative acts changes drastically as they grow (Figure \ref{fig:branching_out_plot}). Early on, children's utterances are predominantly backchannels, interjections, and affirmations or negations (e.g., "yeah", "no", "uh huh"). By around 20 months of age, social routines such as greetings and naming family members (e.g., "hi", "bye", "mommy") displace backchannels to become a substantial part of children's repertoire. Around the same age, an increasing proportion of children's utterances direct attention to or label things in the environment (e.g., "what's that?", "there's a..."). Parents also increasingly use these labeling utterances when their children are around 15-30 months old; after about 30 months, these utterances diminish in both parent and child speech. 
 
-Across our observed age range, both parents and children consistently increase the proportion of their statements about mental states and testimony (e.g., "know", "think", "said"). This is consistent with prior work showing an increase in mental state talk over the 3- to 5-year-old age range, which is correlated with theory of mind task performance [@hughes1998], de-villiers2000]. It may also reflect growing mastery of the complex syntax required to produce embedded constructions about mental states (e.g., "She thinks it will rain.").
+Across our observed age range, both parents and children consistently increase the proportion of their statements about mental states and testimony (e.g., "know", "think", "said"). This is consistent with prior work showing an increase in mental state talk over the 3- to 5-year-old age range, which is correlated with theory of mind task performance [@hughes1998], @de-villiers2000]. It may also reflect growing mastery of the complex syntax required to produce embedded constructions about mental states (e.g., "She thinks it will rain.").
 
 
 One way to characterize the diversity of communicative acts a person engages in is to measure the entropy of their communicative acts. Overall, parents' communicative acts had higher entropy than children's. Children's communicative act entropy increased drastically over development between 6 and around 24 months, and remained relatively stable across the rest of our age range, as shown in Figure \ref{fig:entropy_plot}. 
