@@ -215,6 +215,33 @@ branching <- childes_htmm_pdwz %>%
   group_by(age_bin, speaker_role) %>%
   count(max_topic) 
 
+par_child_topic_probs <- childes_htmm_pdwz %>%
+  group_by(transcript_id, speaker_role) %>%
+  count(max_topic) %>%
+  ungroup() %>%
+  complete(transcript_id, speaker_role, max_topic, fill = list(n = 0)) %>% 
+  group_by(transcript_id, speaker_role) %>%
+  mutate(sum = sum(n)) %>% 
+  ungroup() %>%
+  mutate(prob = n / sum) %>% 
+  select(transcript_id, speaker_role, max_topic, prob) %>%
+  pivot_wider(names_from = speaker_role, values_from = prob)
+
+nested_probs <- par_child_topic_probs %>%
+  group_by(max_topic) %>%
+  nest()
+
+lapply(nested_probs, cor.test(.$Parent, .$Target_Child))
+
+
+topic_probs_cor_plot <- par_child_topic_probs
+  ggplot(aes(x = Parent, y = Target_Child)) +
+  geom_point() +
+  geom_smooth() +
+  facet_wrap(~max_topic)
+
+par_child_topic_count_correlation <- cor.test(branching_wide$Child, branching_wide$Parent)
+
 branching_annotations <- tibble(max_topic = 1:num_topics,
                                 topic_name = topics,
                                 age_bin = c(60, 30, 48, 53, 50, 55, 50,
@@ -320,12 +347,11 @@ Over development, children gain the ability to engage in more structured dialogu
 To calculate the mutual information between parents' and children's utterances, we use the full distribution of communicative act probabilities for each utterance produced by the model. These probabilities are averaged within turns; that is, if a child produced four utterances in a row, the probabilities are averaged to produce one probability per act type per turn. We then compute conditional probabilities for each current act type given each prior act type. These conditional probabilities are used to calculate mutual information. We calculate mutual information values for the parent's utterance given the child's utterance, the child's utterance given the parent's utterance, and the child's utterance given their own prior utterance (their own last turn).
 
 ```{r mi, fig.cap = "Mutual information between parents and children's communicative acts over development."}
-mutual_info_cis <- read_csv(here("data/mutual_information_cis.csv"))
-mutual_info_cis %>%
-  ggplot(aes(age_bin, mean, color = type, group = type)) +
+mutual_information %>%
+  ggplot(aes(age_bin, mi, color = type, group = type)) +
   geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)) +
   geom_line() +
-  ylab("Mutual Information") +
+  ylab("Mutual Information (bits)") +
   xlab("Age") +
   ggtitle("") +
   theme(legend.position = c(0.8, 0.6)) 

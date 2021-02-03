@@ -87,117 +87,82 @@ chunks_nested <- avg_chunks %>%
   nest() %>% 
   mutate(matrix = map(data, get_prob_t_matrix))
 
-conditional_probs <- chunks_nested %>%
+epsilon = 0.000000000001
+
+joint_probs <- chunks_nested %>%
   select(transcript_id, age_bin, matrix) %>%
-  unnest(matrix) 
+  unnest(matrix) %>%
+  mutate_at(topic_probs, ~ . + epsilon)
+
+#code for checking various joint prob tables
+# joint_probs <- chunks_nested %>%
+#   select(transcript_id, age_bin, matrix) %>%
+#   unnest(matrix) %>%
+#   pivot_longer(cols = topic_probs, names_to = "current_topic", values_to = "prob") %>%
+#   mutate(prob = if_else(prior_topic == current_topic, 100, 0.01)) %>%
+#   pivot_wider(names_from = current_topic, values_from = prob)
 
 get_mis <- function(transcripts) {
   
-  conditional_probs_by_age <- conditional_probs %>%
+  joint_probs_by_age <- joint_probs %>%
     filter(transcript_id %in% transcripts) %>%
     group_by(age_bin, speaker, prior_topic) %>%
     summarise_at(topic_probs, sum) %>%
     ungroup()
   
-  conditional_probs_normed <- conditional_probs_by_age %>% 
-    mutate(row_sum = rowSums(select(., all_of(topic_probs)))) %>% 
-    mutate_at(all_of(topic_probs), ~ ./row_sum) 
-
-  
-  parent_probs <- avg_chunks %>%
-    filter(speaker_role == "Parent",
-           transcript_id %in% transcripts) %>%
-    group_by(age_bin) %>%
-    summarise_at(topic_probs, sum) %>%
-    ungroup() %>%
+  table_sums <- joint_probs_by_age %>% 
     mutate(row_sum = rowSums(select(., all_of(topic_probs)))) %>% 
     mutate_at(all_of(topic_probs), ~ ./row_sum) %>%
-    pivot_longer(cols = topic_probs, names_to = "state", values_to = "prob") %>%
-    group_by(age_bin) %>%
-    mutate(entropy = entropy(prob)) %>%
-    ungroup()
+    group_by(age_bin, speaker) %>%
+    summarise(sum = sum(row_sum))
   
-  child_probs <- avg_chunks %>%
-    filter(speaker_role == "Target_Child",
-           transcript_id %in% transcripts) %>%
-    group_by(age_bin) %>%
-    summarise_at(topic_probs, sum) %>%
-    ungroup() %>%
-    mutate(row_sum = rowSums(select(., all_of(topic_probs)))) %>% 
-    mutate_at(all_of(topic_probs), ~ ./row_sum)  %>%
-    pivot_longer(cols = topic_probs, names_to = "state", values_to = "prob") %>%
-    group_by(age_bin) %>%
-    mutate(entropy = entropy(prob)) %>%
-    ungroup()
+  joint_probs_normed <- joint_probs_by_age %>% 
+    left_join(table_sums, by = c("age_bin", "speaker")) %>%
+    mutate_at(all_of(topic_probs), ~ ./sum) %>%
+    select(-sum) %>%
+    pivot_longer(cols = topic_probs, names_to = "current_topic", values_to = "prob")
   
-  child_given_parent <- conditional_probs_normed %>%
-    filter(speaker == "child") %>%
-    pivot_longer(cols = topic_probs, names_to = "current_topic", values_to = "prob") %>%
-    group_by(age_bin, prior_topic) %>% 
-    mutate(entropy = entropy(prob)) %>%
-    summarise(conditional_entropy = first(entropy)) %>% ungroup()
+  prior_topic_marginal <- joint_probs_normed %>%
+    group_by(age_bin, speaker, prior_topic) %>%
+    summarise(prior_topic_prob = sum(prob)) %>% ungroup()
   
-  parent_given_child <- conditional_probs_normed %>%
+  current_topic_marginal <- joint_probs_normed %>%
+    group_by(age_bin, speaker, current_topic) %>%
+    summarise(current_topic_prob = sum(prob)) %>% ungroup()
+  
+  all_probs <- joint_probs_normed %>%
+    rename(joint_prob = prob) %>%
+    left_join(prior_topic_marginal, 
+              by = c("age_bin", "speaker", "prior_topic")) %>%
+    left_join(current_topic_marginal, 
+              by = c("age_bin", "speaker", "current_topic"))
+    
+  parent_given_child <- all_probs %>%
     filter(speaker == "parent") %>%
-    pivot_longer(cols = topic_probs, names_to = "current_topic", values_to = "prob") %>%
-    group_by(age_bin, prior_topic) %>% 
-    mutate(entropy = entropy(prob)) %>%
-    summarise(conditional_entropy = first(entropy)) %>% ungroup()
+    mutate(term = joint_prob * log2(joint_prob/(prior_topic_prob * current_topic_prob))) %>%
+    group_by(age_bin) %>%
+    summarise(mi = sum(term)) %>%
+    mutate(type = "parent_given_child")
   
-  child_given_child <- conditional_probs_normed %>%
+  child_given_parent <- all_probs %>%
+    filter(speaker == "child") %>%
+    mutate(term = joint_prob * log2(joint_prob/(prior_topic_prob * current_topic_prob))) %>%
+    group_by(age_bin) %>%
+    summarise(mi = sum(term)) %>%
+    mutate(type = "child_given_parent")
+  
+  child_given_child <- all_probs %>%
     filter(speaker == "child_self") %>%
-    pivot_longer(cols = topic_probs, names_to = "current_topic", values_to = "prob") %>%
-    group_by(age_bin, prior_topic) %>% 
-    mutate(entropy = entropy(prob)) %>%
-    summarise(conditional_entropy = first(entropy)) %>% ungroup()
-  
-  sums_child_given_parent <- child_given_parent %>%
-    left_join(parent_probs, by = c("prior_topic" = "state", "age_bin")) %>%
-    mutate(weighted_entropy = conditional_entropy * prob) %>%
+    mutate(term = joint_prob * log2(joint_prob/(prior_topic_prob * current_topic_prob))) %>%
     group_by(age_bin) %>%
-    summarise(sum_weighted_entropies = sum(weighted_entropy)) %>%
-    ungroup()
+    summarise(mi = sum(term)) %>%
+    mutate(type = "child_given_child")
   
-  sums_parent_given_child <- parent_given_child %>%
-    left_join(child_probs, by = c("prior_topic" = "state", "age_bin")) %>%
-    mutate(weighted_entropy = conditional_entropy * prob) %>%
-    group_by(age_bin) %>%
-    summarise(sum_weighted_entropies = sum(weighted_entropy)) %>%
-    ungroup()
-  
-  sums_child_given_child <- child_given_child %>%
-    left_join(child_probs, by = c("prior_topic" = "state", "age_bin")) %>%
-    mutate(weighted_entropy = conditional_entropy * prob) %>%
-    group_by(age_bin) %>%
-    summarise(sum_weighted_entropies = sum(weighted_entropy)) %>%
-    ungroup()
-  
-  mi_child_given_parent <- child_probs %>%
-    group_by(age_bin) %>%
-    summarise(entropy = first(entropy)) %>% ungroup() %>%
-    left_join(sums_child_given_parent, by = "age_bin") %>%
-    mutate(mi = entropy - sum_weighted_entropies,
-           type = "child_given_parent")
-  
-  mi_parent_given_child <- parent_probs %>%
-    group_by(age_bin) %>%
-    summarise(entropy = first(entropy)) %>% ungroup() %>%
-    left_join(sums_parent_given_child, by = "age_bin") %>%
-    mutate(mi = entropy - sum_weighted_entropies,
-           type = "parent_given_child")
-  
-  mi_child_given_child <- child_probs %>%
-    group_by(age_bin) %>%
-    summarise(entropy = first(entropy)) %>% ungroup() %>%
-    left_join(sums_child_given_child, by = "age_bin") %>%
-    mutate(mi = entropy - sum_weighted_entropies,
-           type = "child_given_child")
-  
-  all_mis <- rbind(mi_child_given_parent, mi_parent_given_child, mi_child_given_child)
+  all_mis <- rbind(child_given_parent, parent_given_child, child_given_child)
   return(all_mis)
 }
 
- 
+
 
 all_transcripts <- chunks_nested %>% ungroup() %>%
   select(transcript_id) %>%
@@ -213,19 +178,15 @@ mis_df <- do.call(rbind, mis)
 
 mi_cis <- mis_df %>%
   group_by(age_bin, type) %>%
-  summarise(mean = mean(mi), sd = sd(mi),
-              ci_dev = qnorm(0.975)*sd/sqrt(500)) %>%
-  mutate(ci_upper = mean + ci_dev, ci_lower = mean - ci_dev)
+  summarise(bootstrap_mean = mean(mi), 
+            ci_upper = quantile(mi, 0.975),
+            ci_lower = quantile(mi, 0.025)) 
 
-conditional_probs_normed %>%
-  pivot_longer(cols = topic_probs, names_to = "current_topic", values_to = "prob") %>%
-  ggplot(aes(x=prior_topic, y=current_topic, fill=prob)) + 
-  geom_tile() +
-  facet_grid(speaker~age_bin, scales = "free") 
+mi_means <- get_mis(all_transcripts$transcript_id)
 
+mis_all <- mi_cis %>%
+  left_join(mi_means, by = c("age_bin", "type"))
 
-
-#write_csv(conditional_probs_normed, here("data/conditional_probs.csv"))
-#write_csv(all_mis, here("data/mutual_information_vals.csv"))
-#write_csv(mi_cis, here("data/mutual_information_cis.csv"))
+#write_csv(conditional_probs_normed, here("data/joint_probs.csv"))
+#write_csv(mis_all, here("data/mutual_information_vals.csv"))
 
