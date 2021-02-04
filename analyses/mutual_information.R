@@ -187,6 +187,39 @@ mi_means <- get_mis(all_transcripts$transcript_id)
 mis_all <- mi_cis %>%
   left_join(mi_means, by = c("age_bin", "type"))
 
-#write_csv(conditional_probs_normed, here("data/joint_probs.csv"))
+
 #write_csv(mis_all, here("data/mutual_information_vals.csv"))
 
+joint_probs_by_age <- joint_probs %>%
+  group_by(age_bin, speaker, prior_topic) %>%
+  summarise_at(topic_probs, sum) %>%
+  ungroup()
+
+table_sums <- joint_probs_by_age %>% 
+  mutate(row_sum = rowSums(select(., all_of(topic_probs)))) %>% 
+  mutate_at(all_of(topic_probs), ~ ./row_sum) %>%
+  group_by(age_bin, speaker) %>%
+  summarise(sum = sum(row_sum))
+
+joint_probs_normed <- joint_probs_by_age %>% 
+  left_join(table_sums, by = c("age_bin", "speaker")) %>%
+  mutate_at(all_of(topic_probs), ~ ./sum) %>%
+  select(-sum) %>%
+  pivot_longer(cols = topic_probs, names_to = "current_topic", values_to = "prob")
+
+joint_probs_normed %>%
+  filter(speaker == "child") %>%
+  mutate(prior_topic = as.integer(str_remove(prior_topic, "topic_")),
+         current_topic = as.integer(str_remove(current_topic, "topic_")),
+         age_median = case_when(age_bin <= 10 ~ "6 to 10 months",
+                                age_bin <= 20 ~ "11 to 20 months",
+                                age_bin > 20 ~ "21 to 60 months"),
+         age_median = factor(age_median, levels = c("6 to 10 months",
+                                                    "11 to 20 months",
+                                                    "21 to 60 months"))) %>%
+  ggplot(aes(x=prior_topic, y=current_topic, fill=log(prob))) + 
+  geom_tile() +
+  facet_wrap(~age_median, scales = "free") +
+  scale_fill_gradientn(colours = viridis(256, option = "D"))
+
+#write_csv(joint_probs_normed, here("data/joint_probs_normed.csv"))
