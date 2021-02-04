@@ -10,7 +10,7 @@ author-information: >
    \author{Anonymous CogSci Submission}
    
 abstract: |
-  Over their first years of life, children learn not just the words of their native language, but how to use them to communicate. Becauese manual annotation of communicative acts does not scale to large corpora, our understanding of communicative development is limited to case studies of a few children at a few time points. We present a method for automatic identification of communicative acts using a Hidden Markov Topic Model, and apply it to all the entire CHILDES database. We first describe qualitative changes in parent-child interactions over development, and then use our method to demonstrate two large-scale features of communicative development: (1) children develop an adult-like repertoire of communicative acts months before they develop an adult-like diversity of words, and (2) children's mastery of communicative acts co-incides with the point of highest predictability between parents acts and children's, suggesting that structured interactions may play an important role in language development.
+  Over their first years of life, children learn not just the words of their native language, but how to use them to communicate. Becauese manual annotation of communicative acts does not scale to large corpora, our understanding of communicative development is limited to case studies of a few children at a few time points. We present a method for automatic identification of communicative acts using a Hidden Markov Topic Model, and apply it to all the entire CHILDES database. We first describe qualitative changes in parent-child interactions over development, and then use our method to demonstrate two large-scale features of communicative development: (1) children develop an adult-like repertoire of communicative acts months before they develop an adult-like diversity of words, and (2) children's mastery of communicative acts coincides with the point of highest predictability between parents acts and children's, suggesting that structured interactions may play an important role in language development.
   
 keywords: >
   language input, language acquisition, child-directed speech, corpus analysis
@@ -104,13 +104,13 @@ In contrast to a standard topic model, the Hidden Topic Markov Model takes into 
 
 We trained the HTMM on all the utterances in our corpus. Some markers for unintelligible or non-word speech were removed; when this resulted in empty utterances, a 'non-word utterance' token was included to preserve the temporal structure of the dialogue. Typically, function words are removed from corpora before training topic models to aid detection of thematic content. Here, we aim to classify communicative modes underlying utterances rather than thematic topics. We expected function words to be diagnostic of these modes, so included them in our training data.
 
-Topic models require pre-specification of the number of topics. To determine the right number of topics, we trained the model several times with different numbers of topics—5 to 30 topics, in intervals of 5—with Dirichlet parameters of $alpha$ = 1/*k*, where *k* is the number of topics, and $beta$ = 0.01. Each model produced a sequence of the most likely topic assigned to each utterance. Our selection metric was the proportion of other-topic transitions in this sequence: since we aimed to characterize the temporal structure of topic transitions, we wanted to choose a model that had many of transitions between topics rather than long stretches of utterances all assigned to the same topic. However, increasing the number of topics almost necessarily increases the number of other-topic transitions, and may make results harder to interpret as topics proliferate; therefore, we balanced the proportion of other-topic transitions against number of topics. Plotting this proportion across number of topics, we judged 15 topics as an inflection point after which increasing the number of topics had diminishing effect on other-topic transitions; we therefore chose the 15-topic model.
+Topic models require pre-specification of the number of topics. To determine the right number of topics, we trained the model several times with different numbers of topics—5 to 30 topics, in intervals of 5—with Dirichlet parameters of $alpha$ = 1/*k*, where *k* is the number of topics, and $beta$ = 0.01. Each model produced a sequence of the most likely topic assigned to each utterance. Our selection metric was the proportion of other-topic transitions in this sequence: since we aimed to characterize the temporal structure of topic transitions, we wanted to choose a model that had many transitions between topics rather than long stretches of utterances all assigned to the same topic. However, increasing the number of topics almost necessarily increases the number of other-topic transitions, and may make results harder to interpret as topics proliferate; therefore, we balanced the proportion of other-topic transitions against number of topics. Plotting this proportion across number of topics, we judged 15 topics as an inflection point after which increasing the number of topics had diminishing effect on other-topic transitions; we therefore chose the 15-topic model.
 
 # Results and Discussion
 
-We begin by we show that the model captures some aspects of communicative acts and explore the static distribution of these utterance types. We then examine trajectories of topic use across development among parents and children. Finally, we examine the temporal dynamics of topic use within discourse.
+We begin by showing that the model captures some aspects of communicative acts and exploring the static distribution of these utterance types. We then examine trajectories of topic use across development among parents and children. Finally, we examine the temporal dynamics of topic use within discourse.
 
-## The structure of communicative acts
+## Part 1: The structure of communicative acts
 
 After training, the model produces a set of topics with associated probability distributions over words. One can conceive of these topics as bags of words, in which some words will be highly likely to be produced and others will be unlikely to be produced. We extracted the most distinctive words from each topic by taking the difference between the likelihood of each word in a given topic and its average likelihood across all topics (Table \ref{fig:topic_table}). 
 
@@ -187,7 +187,7 @@ To further validate our method, we considered sets of exchanges that share the s
 
 Bolstered by the coherence of communicative act categories and the resemblance of their sequences, we next provide first qualitative and then quantitative descriptions of parents' and children's production of these acts over development.
 
-## Use of communicative acts over development
+## Part 2: Use of communicative acts over development
 
 ```{r entropy-par-child}
 
