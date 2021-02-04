@@ -78,6 +78,11 @@ childes_htmm_pdwz <- childes_htmm_pdwz %>%
   mutate(age_in_months = floor(target_child_age)) %>%
   filter(age_in_months >= 6) %>%
   mutate(age_bin = cut(age_in_months, breaks = 9))
+
+n_transcripts <- childes_htmm_pdwz %>%
+  select(transcript_id) %>%
+  distinct(transcript_id) %>%
+  nrow()
 ```
 
 From their first utterances, children are not just producing language but *using* it to communicate. A child who can produce only one-word utterances can nonetheless convey several communicative intentions: using variations in pitch, she can use the word *mama* to identify a person, question possession of an object, or to call for someone's presence [@dore_1975]. From 14 to 30 months of age, children quickly branch out from communicative acts like *requesting*, *protesting*, and *marking an event* to *agreeing to an action*, *stating intent*, and asking and answering a variety of questions [@snow_learning_1996]. These close studies of children's conversations, using rich observations to infer intended meaning in context, show that much of the action of language acquisition happens at the level of what children *mean* to say.
@@ -94,7 +99,8 @@ Here, we characterize children's growing repertoire of communicative acts using 
 
 ## Corpus
 
-We used transcripts of conversations from the Child Language Data Exchange System (CHILDES), a database of child conversation corpora [@macwhinney_childes_2000]. These corpora predominantly record spontaneous conversations between children and their family members, often in the home. We used transcripts from the North American English collection of CHILDES among children 6 months to 60 months old, and filtered these transcripts to include only utterances spoken by the target child or their parents. Overall, our training data included XXX transcripts from XXX children. 
+We used transcripts of conversations from the Child Language Data Exchange System (CHILDES), a database of child conversation corpora [@macwhinney_childes_2000]. These corpora predominantly record spontaneous conversations between children and their family members, often in the home. We trained our model on transcripts from the North American English collection of CHILDES among children under 60 months old, and filtered these transcripts to include only utterances spoken by the target child or their parents. In our subsequent analyses, we analyze only children 6 to 60 months old, and transcripts with at least 10 child utterances and 10 parent utterances. Overall, our training data included XXX transcripts from XXX children. 
+
 
 ## Model
 
