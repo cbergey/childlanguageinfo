@@ -17,10 +17,11 @@ library(reticulate)
 library(entropy)
 library(tidyboot)
 use_condaenv("r-reticulate")
+library(DT)
 ```
 
 ```{r read_feather}
-switchboard <- read_feather(here("childlanguageinfo/switchboard (1).feather"))
+switchboard <- read_feather(here("switchboard (1).feather"))
 ```
 
 ```{r read_feather_childes}
@@ -169,4 +170,228 @@ par_child_entropies %>%
   geom_point() +
   geom_smooth(method = "lm") +
   facet_wrap(~is_random)
+ HEAD
+```
+
+```{r htmm prep}
+switchboard <- switchboard %>%
+  group_by(file) %>%
+  mutate(utterance_order = seq(0, n()-1)) %>%
+  ungroup()
+
+# create a dict of frame types
+frame_dict <- switchboard %>%
+  count(text) %>%
+  arrange(desc(n)) %>%
+  filter(n > 1)
+
+frame_dict$id <- seq.int(nrow(frame_dict))
+
+last_utt <- switchboard %>%
+   group_by(text) %>%
+   summarise(utterance_order = max(utterance_order)) %>%
+   mutate(utterance_order = utterance_order + 1,
+          utt_parse = "X", frame_id = 0) 
+
+switchboard <- switchboard %>%
+  mutate(frame_id = frame_dict[match(text,frame_dict$utt_parse),]$id) %>%
+  arrange(file, utterance_order)
+bind_rows(last_utt)
+
+switchboard <- switchboard %>%
+  mutate(frame_id = if_else(is.na(frame_id), 10362L, frame_id))
+
+max <- switchboard %>% distinct(frame_id) %>% arrange(desc(frame_id))
+na <- switchboard %>% filter(is.na(frame_id))
+
+n_tokens = nrow(switchboard)
+n_types = switchboard %>% distinct(frame_id) %>% nrow()
+
+write.csv(switchboard$frame_id, here("data/switchboard.txt"),
+          row.names = FALSE)
+```
+
+```{r make-htmm-file}
+
+make_dict <- function(corpus) {
+  dict <- corpus %>%
+    mutate(word = strsplit(as.character(text), " ")) %>% 
+    unnest(word) %>%
+    distinct(word) %>%
+    as_tibble(t(.))
+  dict$id <- seq.int(nrow(dict))
+  return(dict)
+}
+
+
+get_word_ids <- function(utterance) {
+  words <- str_split(utterance, " ")
+  id_sequence <- dict[match(words[[1]], dict$word),]$id %>%
+    paste(sep = " ", collapse = " ") 
+  return(id_sequence)
+}
+get_word_ids_v <- Vectorize(get_word_ids)
+
+get_word_codes <- function(corpus) {
+  corpus_coded <- corpus %>%
+    mutate(word_ids = get_word_ids_v(text),
+           sentence_length = str_count(word_ids, '\\w+')) %>%
+    select(file, sentence_length, word_ids) %>%
+    group_by(file) %>%
+    mutate(g = group_indices()) %>%
+    ungroup()
+  return(corpus_coded)
+}
+
+dict <- make_dict(switchboard)
+
+switchboard_print <- get_word_codes(switchboard)
+
+
+for (i in 1:n_distinct(switchboard_print$g)) {
+  transcript <- switchboard_print %>% filter(g == i) %>%
+    select(!c(g, file))
+  filename = paste0(here("data/switchboard_gloss/switchboard_gloss_for_htmm_"), i)
+   write.table(transcript, filename, 
+             append = FALSE, quote = FALSE, sep = " ", dec = " ",
+             row.names = FALSE, col.names = FALSE)
+}
+
+for (i in 1:n_distinct(switchboard_print$g)) {
+  text = paste0("switchboard_gloss_for_htmm_", i)
+  write(text, here("data/switchboard_gloss_doc_names"), append = TRUE)
+}
+
+write.csv(dict, here("data/switchboard_gloss_word_dict.csv"))
+
+```
+
+```{r read-phi-files}
+# analyze htmm phi data
+
+word_freqs <- table(unlist(strsplit(tolower(switchboard$text), " ")))
+# read in switchboard.txt
+
+read_phi_vals <- function(filename) {
+  cols = as.character(c(1:num_words))
+  phi_vals <- read_tsv(paste0(filepath,filename), col_names = cols, skip = 1)
+  phi_vals$topic = seq.int(nrow(phi_vals))
+  phi_vals <- phi_vals %>% select(topic, everything()) %>%
+    pivot_longer(cols = cols, names_to = "word_id", values_to = "phi") %>%
+    mutate(word = dict[match(word_id,dict$id),]$word,
+           model = filename)
+  
+  return(phi_vals)
+}
+
+filepath <- here("data/childes_htmm/")
+filenames <- list.files(path=here("data/childes_htmm"),
+                        pattern=".*phi", full.names = FALSE)
+num_words = 46515
+
+phi_vals <- read_phi_vals("switchboard_gloss_15.phi")
+
+
+avg_topic <- phi_vals %>%
+  group_by(word, word_id) %>%
+  summarise(avg_phi = mean(phi))
+
+
+phi_vals <- phi_vals %>%
+  left_join(avg_topic) %>%
+  mutate(phi_dev = phi/avg_phi,
+         phi_diff = phi - avg_phi,
+         model = gsub("[^0-9]", "", model))
+
+write_csv(phi_vals, here("data/phi_vals_switchboard_15.csv"))
+```
+
+```{r datatables}
+plot <- phi_vals %>%
+  filter(model == "15") %>%
+  filter(word_freqs[word] > 100) %>%
+  group_by(topic) %>%
+  arrange(desc(phi_dev)) %>%
+  slice(1:20) %>%
+  mutate(num = 1:20) %>%
+  ungroup() %>%
+  select(topic, num, word) %>%
+  pivot_wider(names_from = topic, values_from = word) %>%
+  datatable()
+
+plot
+```
+
+
+```{r read-pdwz}
+
+filepath <- here("data/")
+
+make_col_names <- function(num_topics, half = FALSE, star = FALSE) {
+  topic_nums <- c(1:num_topics)
+  topics_plain <- paste0("topic_", topic_nums)
+  topics_star <- paste0("topic_", topic_nums, "_*")
+  if (half){
+    if (star) {return(topics_star)}
+    return(topics_plain)
+  }
+  return(append(topics_plain, topics_star))
+}
+
+read_pdwz_vals <- function(filename, just_max = TRUE, get_ids = FALSE) {
+  num_topics <- as.numeric(gsub("\\..*","", gsub(".*_","",filename)))
+  cols = make_col_names(num_topics)
+  topics = make_col_names(num_topics, half = TRUE)
+  #topics_star = make_col_names(num_topics, half = TRUE, star = TRUE)
+  
+  pdwz_vals <- read_tsv(paste0(filepath,filename), col_names = cols) %>%
+    select(all_of(topics)) %>%
+    mutate(doc_id = if_else(str_detect(topic_1, "d ="), 
+                            as.numeric(str_remove(topic_1, "d = ")), NA_real_),
+           utt_id = if_else(str_detect(topic_1, "i ="), 
+                            as.numeric(str_remove(topic_1, "i = ")), NA_real_),
+           utt_id = if_else(is.na(utt_id), lag(utt_id), utt_id)) %>%
+    #mutate_at(topics_star,  funs(gsub("[*]", "", .))) %>%
+    fill(doc_id) %>%
+    filter(!str_detect(topic_1, "=")) %>%
+    mutate(doc_id = doc_id + 1, utt_id = utt_id + 1) %>%
+    mutate_all(as.numeric)
+  
+  pdwz_vals$max_topic <- apply(pdwz_vals %>% select(topics), 1, which.max)
+  pdwz_vals$max_topic_prob <- apply(pdwz_vals %>% select(topics), 1, max)
+  
+  if (get_ids) {
+    return(pdwz_vals %>% select(doc_id, utt_id))
+  }
+  if (just_max) {
+    pdwz_vals_select <- pdwz_vals %>% select(max_topic, max_topic_prob)
+    colnames(pdwz_vals_select) <- paste0(colnames(pdwz_vals_select), "_", num_topics)
+    return(pdwz_vals_select)
+  }
+  pdwz_vals$num_topics <- num_topics
+  return(pdwz_vals)
+}
+
+filenames <- list.files(path=here("data"),
+                        pattern=".*pdwz", full.names = FALSE)
+pdwz_all <- read_pdwz_vals("switchboard_gloss_15.pdwz")
+ids <- read_pdwz_vals("switchboard_gloss_15.pdwz", get_ids = TRUE)
+pdwz_all <- cbind(pdwz_all, ids)
+
+
+switchboard_htmm_pdwz <- switchboard %>%
+  group_by(file) %>%
+  mutate(doc_id = group_indices(),
+         utt_id = row_number(file)) %>%
+  ungroup() %>%
+  left_join(pdwz_all, by = c("doc_id", "utt_id"))
+
+switchboard_htmm_pdwz %>%
+  filter(max_topic_15 == 10) %>%
+  View()
+
+write_feather(switchboard_htmm_pdwz, here("data/switchboard_htmm_15.feather"))
+  
+#write_csv(phi_vals, here("data/childes_phi_vals_25.csv"))
+#write_csv(pdwz_vals, here("data/childes_pdwz_vals_25.csv"))
 ```
