@@ -1,0 +1,125 @@
+---
+title: "Form and function"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(here)
+library(tidyboot)
+library(ggthemes)
+library(feather)
+
+theme_set(theme_few(base_size = 10))
+```
+
+```{r read-data}
+childes_htmm_pdwz <- read_feather(here("data/childes_htmm_15.feather")) 
+childes_htmm_phi <- read_csv(here("data/phi_vals_all_models.csv"))
+dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
+
+n_transcripts_unfiltered <- childes_htmm_pdwz %>%
+  select(transcript_id) %>%
+  distinct(transcript_id) %>%
+  nrow()
+
+n_children_unfiltered <- childes_htmm_pdwz %>%
+  select(target_child_id) %>%
+  distinct(target_child_id) %>%
+  nrow()
+
+mutual_information <- read_csv(here("data/mutual_information_vals.csv"))
+conditional_probs <- read_csv(here("data/conditional_probs.csv"))
+
+childes_keep <- childes_htmm_pdwz %>%
+  mutate(speaker_role = if_else(speaker_role == "Mother" | speaker_role == "Father",
+                                "Parent", speaker_role)) %>%
+  group_by(transcript_id, speaker_role) %>%
+  summarise(n = n()) %>%
+  ungroup() %>%
+  complete(speaker_role, transcript_id, fill = list(n = 0)) %>%
+  arrange(transcript_id) %>%
+  pivot_wider(names_from = "speaker_role", values_from = "n") %>%
+  filter(Parent > 10, Target_Child > 10)
+
+childes_htmm_pdwz <- childes_htmm_pdwz %>%
+  mutate(speaker_role = if_else(speaker_role == "Mother" | speaker_role == "Father",
+                                "Parent", speaker_role)) %>%
+  filter(transcript_id %in% childes_keep$transcript_id) %>%
+  mutate(age_in_months = floor(target_child_age)) %>%
+  filter(age_in_months >= 6) %>%
+  mutate(age_bin = cut(age_in_months, breaks = 9))
+
+n_transcripts <- childes_htmm_pdwz %>%
+  select(transcript_id) %>%
+  distinct(transcript_id) %>%
+  nrow()
+
+n_children <- childes_htmm_pdwz %>%
+  select(target_child_id) %>%
+  distinct(target_child_id) %>%
+  nrow()
+```
+
+```{r}
+frame_freqs <- childes_htmm_pdwz %>%
+  count(utt_parse, num_tokens) %>%
+  arrange(desc(n))
+
+top_frames <- frame_freqs %>%
+  slice(1:25) 
+
+frames <- childes_htmm_pdwz %>%
+  mutate(age_bin = cut(age_in_months, 20, labels = FALSE),
+         age_bin = (54/20)*age_bin + 6,
+         speaker_role = if_else(speaker_role == "Target_Child", "Child", "Parent"),
+         speaker_role = factor(speaker_role, levels = c("Child", "Parent"))) %>%
+  count(speaker_role, utt_parse, age_bin)
+
+frames %>%
+  filter(utt_parse %in% top_frames$utt_parse) %>%
+  ggplot(frames, aes(x = age_bin, y = n, group = utt_parse, 
+             fill = as.factor(utt_parse))) +
+  geom_area(position = "fill", color = "black") +
+  facet_wrap(~speaker_role) +
+  labs(x = "Age (months)", y = "Frame proportion")
+```
+
+Top frames over development.
+
+```{r}
+top_frames <- frame_freqs %>%
+  filter(num_tokens > 1) %>%
+  slice(1:25) 
+
+frames %>%
+  filter(utt_parse %in% top_frames$utt_parse) %>%
+  ggplot(frames, aes(x = age_bin, y = n, group = utt_parse, 
+             fill = as.factor(utt_parse))) +
+  geom_area(position = "fill", color = "black") +
+  facet_wrap(~speaker_role) +
+  labs(x = "Age (months)", y = "Frame proportion")
+```
+
+Top frames with more than one word over development.
+
+```{r}
+
+top_frames <- frame_freqs %>%
+  slice(1:40)
+
+frames_x_acts <- childes_htmm_pdwz %>%
+  filter(utt_parse %in% top_frames$utt_parse) %>%
+  count(speaker_role, utt_parse, max_topic)
+
+frames_x_acts %>%
+  group_by(utt_parse) %>%
+  mutate(prob = n/sum(n)) %>%
+  ungroup() %>% 
+  ggplot(aes(x=max_topic, y=utt_parse, fill=log(prob))) + 
+  geom_tile() +
+  facet_wrap(~speaker_role, scales = "free") 
+
+```
