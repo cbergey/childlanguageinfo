@@ -1,0 +1,56 @@
+---
+title: "switchboard_analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+library(tidyverse)
+library(reticulate)
+library(feather)
+library(stringr)
+use_condaenv("r-reticulate")
+```
+
+```{r load-data}
+switchboard <- read_feather(here("data/switchboard.feather"))
+
+switchboard <- switchboard %>%
+  group_by(file) %>%
+  mutate(utt_id = row_number(),
+         transcript_id = cur_group_id(),
+         speaker = if_else(utt_id %% 2 == 0, "speaker_2", "speaker_1")) %>%
+  ungroup()
+```
+
+```{r get-word-crosses}
+num_combns <- function(length, p = 2) {
+  return(factorial(length)/(factorial(p)*factorial(length - p)))
+}
+crossed_switchboard <- switchboard %>%
+  mutate(split_utt = str_split(text, " "),
+         n_words = stringr::str_count(text, ' ') + 1) %>%
+  filter(n_words > 1) 
+
+cross <- lapply(crossed_switchboard$split_utt, combn, 2, simplify = FALSE)
+```
+
+```{python}
+import gensim
+from gensim import utils
+import gensim.models
+import gensim.models.word2vec
+from gensim.test.utils import datapath
+wiki_model = KeyedVectors.load_word2vec_format('./data/wiki-news-300d-1M.vec')
+word_sim_dict = {}
+
+for utt in r.cross:
+  for word1, word2 in utt:
+    print(word1)
+```
+
+```{r }
+
+
+```
