@@ -1,0 +1,174 @@
+---
+title: "New England Corpus Analysis"
+author: "Zoe Marshall"
+date: "2/15/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(childesr)
+library(knitr)
+library(here)
+library(feather)
+library(dplyr)
+library(tidyboot)
+library(tidyverse)
+library(plotly)
+library(reticulate)
+library(entropy)
+library(tidyboot)
+library(data.table)
+library(tidyr)
+use_condaenv("r-reticulate")
+```
+
+
+```{python processXML}
+import os
+import runpy
+import sys
+sys.path.insert(1, "/Users/zoemarshall/Desktop/A Clean Desktop/childesResearch2020/childes-db/djangoapp/db")
+import childes
+
+instance14 = childes.CHILDESCorpusReader(root = "/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/14", fileids = os.listdir("/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/14"))
+
+dirs_with_xml = []
+for root, dirs, files in os.walk("/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/14"):
+  for file in files:
+    if file.endswith(".xml"):
+      dirs_with_xml.append(file)
+      
+instance20 = childes.CHILDESCorpusReader(root = "/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/20", fileids = os.listdir("/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/20"))
+
+dirs_with_xml_20 = []
+for root, dirs, files in os.walk("/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/20"):
+  for file in files:
+    if file.endswith(".xml"):
+      dirs_with_xml_20.append(file)
+      
+instance32 = childes.CHILDESCorpusReader(root = "/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/32", fileids = os.listdir("/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/32"))
+
+dirs_with_xml_32 = []
+for root, dirs, files in os.walk("/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/32"):
+  for file in files:
+    if file.endswith(".xml"):
+      dirs_with_xml_32.append(file)
+    
+newList14 = []
+newList20 = []
+newList32 = []
+
+def process_xml(directory, listName, instance):
+  for file in directory:
+    something = instance.get_custom_sents(file)
+    for x in something:
+      if not x[3]:
+        print('nothing here')
+      else:
+        if x[3][0]['type'] == 'speech act':
+          try:
+            if (len(x[3]) == 1):
+              newGloss = ""
+              for elem in x[5]:
+                newGloss += elem['gloss']
+                newGloss += " "
+              listName.append([x[0], x[1], "", newGloss.rstrip(), x[3][0]['text'], file])
+            elif ((x[3][1]['type'] == 'actions') | (x[3][1]['type'] == 'gesture')) & (len(x[5]) == 0):
+              listName.append([x[0], x[1], x[3][1]['text'], "", x[3][0]['text'], file])
+            elif (x[3][1]['type'] == 'actions') | (x[3][1]['type'] == 'gesture'):
+              newGloss = ""
+              for elem in x[5]:
+                newGloss += elem['gloss']
+                newGloss += " "
+              listName.append([x[0], x[1], x[3][1]['text'], newGloss.rstrip(), x[3][0]['text'], file])
+            elif ((x[3][1]['type'] == 'situation') | (x[3][1]['type'] == 'intonation') | (x[3][1]['type'] == 'comments') | (x[3][1]['type'] == 'paralinguistics') | (x[3][1]['type'] == 'extension') | (x[3][1]['type'] == 'explanation') ):
+              newGloss = ""
+              for elem in x[5]:
+                newGloss += elem['gloss']
+                newGloss += " "
+              listName.append([x[0], x[1], x[3][1]['text'], newGloss.rstrip(), x[3][0]['text'], file])
+            elif(x[3][1]['type'] == 'time stamp'):
+              newGloss = ""
+              for elem in x[5]:
+                newGloss += elem['gloss']
+                newGloss += " "
+              listName.append([x[0], x[1], "", newGloss.rstrip(), x[3][0]['text'], file])
+            else:
+              newGloss = ""
+              for elem in x[5]:
+                newGloss += elem['gloss']
+                newGloss += " "
+              listName.append([x[0], x[1], x[3][2]['text'], newGloss.rstrip(), x[3][0]['text'], file])
+          except NameError:
+            print("Name Error")
+          except IndexError:
+            print(x)
+          except KeyError:
+            print("Key Error")
+          else:
+            print("Woo!")
+
+process_xml(dirs_with_xml, newList14, instance14)
+process_xml(dirs_with_xml_20, newList20, instance20)
+process_xml(dirs_with_xml_32, newList32, instance32)
+```
+
+
+```{r}
+classCorpus14 <- py$newList14
+dataFrameCorpus14 <- data.frame(utteranceNumber = "utteranceNumber",
+                              speakerCode = "speakerCode",
+                              motion = "motion",
+                              gloss = "gloss",
+                              speechAct = "speechAct",
+                              transcriptID = "transcriptID")
+for(elem in classCorpus14) {
+  dataFrameCorpus14<- rbind(dataFrameCorpus14, elem)
+}
+classCorpus20 <- py$newList20
+dataFrameCorpus20 <- data.frame(utteranceNumber = "utteranceNumber",
+                              speakerCode = "speakerCode",
+                              motion = "motion",
+                              gloss = "gloss",
+                              speechAct = "speechAct",
+                              transcriptID = "transcriptID")
+for(elem in classCorpus20) {
+  dataFrameCorpus20<- rbind(dataFrameCorpus20, elem)
+}
+
+classCorpus32 <- py$newList32
+dataFrameCorpus32 <- data.frame(utteranceNumber = "utteranceNumber",
+                              speakerCode = "speakerCode",
+                              motion = "motion",
+                              gloss = "gloss",
+                              speechAct = "speechAct",
+                              transcriptID = "transcriptID")
+for(elem in classCorpus32) {
+  dataFrameCorpus32<- rbind(dataFrameCorpus32, elem)
+}
+
+dataFrameCorpus14 <- dataFrameCorpus14 %>%
+  mutate(age = 14)
+dataFrameCorpus20 <- dataFrameCorpus20 %>%
+  mutate(age = 20)
+dataFrameCorpus32 <- dataFrameCorpus32 %>%
+  mutate(age = 32)
+
+dataFrameCorpus <- rbind(dataFrameCorpus14, dataFrameCorpus20, dataFrameCorpus32)
+
+dataFrameCorpus[,6] <- gsub("\\..*", "", dataFrameCorpus[,6]) 
+dataFrameCorpus <- dataFrameCorpus[-1, ]
+dataFrameCorpus <- separate(dataFrameCorpus, speechAct, c("speechAct1", "speechAct2"), 5)
+dataFrameCorpus[,5] <- gsub(":", "", dataFrameCorpus[,5])
+dataFrameCorpus[,5] <- gsub("$", "", dataFrameCorpus[,5])
+dataFrameCorpus[,6] <- gsub("\\. *", "", dataFrameCorpus[,6])
+
+#split into speechAct 3 & 4 for extras
+dataFrameCorpus <- separate(dataFrameCorpus, speechAct2, c("speechAct2", "speechAct3"), 3)
+dataFrameCorpus <- separate(dataFrameCorpus, speechAct3, c("speechAct3", "speechAct4"), 5)
+dataFrameCorpus[,7] <- gsub(":", "", dataFrameCorpus[,7])
+dataFrameCorpus[,1] <- gsub("u", "", dataFrameCorpus[,1])
+
+write.csv(dataFrameCorpus, "/Users/zoemarshall/Desktop/A Clean Desktop/childesResearch2020/childlanguageinfo/data/newEnglandSpeechActs.csv")
+```
