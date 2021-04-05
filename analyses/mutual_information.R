@@ -102,7 +102,7 @@ joint_probs <- chunks_nested %>%
 #   mutate(prob = if_else(prior_topic == current_topic, 100, 0.01)) %>%
 #   pivot_wider(names_from = current_topic, values_from = prob)
 
-get_mis <- function(transcripts) {
+get_mis_sequential <- function(transcripts) {
   
   joint_probs_by_age <- joint_probs %>%
     filter(transcript_id %in% transcripts) %>%
@@ -172,7 +172,7 @@ n_transcripts <- all_transcripts %>% nrow()
 
 transcript_lists <- replicate(500, c(sample_n(all_transcripts, n_transcripts, replace = TRUE)))
 
-mis <- map(transcript_lists, get_mis)
+mis <- map(transcript_lists, get_mis_sequential)
 
 mis_df <- do.call(rbind, mis)
 
@@ -182,7 +182,7 @@ mi_cis <- mis_df %>%
             ci_upper = quantile(mi, 0.975),
             ci_lower = quantile(mi, 0.025)) 
 
-mi_means <- get_mis(all_transcripts$transcript_id)
+mi_means <- get_mis_sequential(all_transcripts$transcript_id)
 
 mis_all <- mi_cis %>%
   left_join(mi_means, by = c("age_bin", "type"))

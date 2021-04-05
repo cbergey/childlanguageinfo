@@ -3,7 +3,7 @@ title: "Form and function"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, message = FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
@@ -15,7 +15,7 @@ library(feather)
 theme_set(theme_few(base_size = 10))
 ```
 
-```{r read-data}
+```{r read-data, message = FALSE, warning=FALSE}
 childes_htmm_pdwz <- read_feather(here("data/childes_htmm_15.feather")) 
 childes_htmm_phi <- read_csv(here("data/phi_vals_all_models.csv"))
 dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
@@ -63,7 +63,7 @@ n_children <- childes_htmm_pdwz %>%
   nrow()
 ```
 
-```{r}
+```{r, message = FALSE}
 frame_freqs <- childes_htmm_pdwz %>%
   count(utt_parse, num_tokens) %>%
   arrange(desc(n))
@@ -80,7 +80,7 @@ frames <- childes_htmm_pdwz %>%
 
 frames %>%
   filter(utt_parse %in% top_frames$utt_parse) %>%
-  ggplot(frames, aes(x = age_bin, y = n, group = utt_parse, 
+  ggplot(aes(x = age_bin, y = n, group = utt_parse, 
              fill = as.factor(utt_parse))) +
   geom_area(position = "fill", color = "black") +
   facet_wrap(~speaker_role) +
@@ -89,14 +89,15 @@ frames %>%
 
 Top frames over development.
 
-```{r}
+```{r, message = FALSE}
 top_frames <- frame_freqs %>%
   filter(num_tokens > 1) %>%
+  filter(utt_parse != "NOUN") %>%
   slice(1:25) 
 
 frames %>%
   filter(utt_parse %in% top_frames$utt_parse) %>%
-  ggplot(frames, aes(x = age_bin, y = n, group = utt_parse, 
+  ggplot(aes(x = age_bin, y = n, group = utt_parse, 
              fill = as.factor(utt_parse))) +
   geom_area(position = "fill", color = "black") +
   facet_wrap(~speaker_role) +
@@ -105,7 +106,23 @@ frames %>%
 
 Top frames with more than one word over development.
 
-```{r}
+```{r, message = FALSE}
+top_frames <- frame_freqs %>%
+  filter(num_tokens > 3) %>%
+  slice(1:25) 
+
+frames %>%
+  filter(utt_parse %in% top_frames$utt_parse) %>%
+  ggplot(aes(x = age_bin, y = n, group = utt_parse, 
+             fill = as.factor(utt_parse))) +
+  geom_area(position = "fill", color = "black") +
+  facet_wrap(~speaker_role) +
+  labs(x = "Age (months)", y = "Frame proportion")
+```
+
+Top frames with more than three words over development.
+
+```{r, message = FALSE}
 
 top_frames <- frame_freqs %>%
   slice(1:40)
@@ -120,6 +137,19 @@ frames_x_acts %>%
   ungroup() %>% 
   ggplot(aes(x=max_topic, y=utt_parse, fill=log(prob))) + 
   geom_tile() +
-  facet_wrap(~speaker_role, scales = "free") 
+  facet_wrap(~speaker_role, scales = "free") +
+  viridis::scale_fill_viridis()
+
+```
+
+```{r, message = FALSE}
+mis_form_function <- read_csv(here("data/form_function_mis.csv"))
+
+mis_form_function %>%
+  ggplot(aes(age_bin, mi, color = type, group = type)) +
+  geom_line() +
+  ylab("Mutual Information (bits)") +
+  xlab("Age") +
+  ggtitle("Mutual information between form and function over development")
 
 ```

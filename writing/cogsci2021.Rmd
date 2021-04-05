@@ -7,7 +7,7 @@ csl: apa6.csl
 document-params: "10pt, letterpaper"
 
 author-information: > 
-   \author{Anonymous CogSci Submission}
+   \author{Claire Bergey, Zoe Marshall, Simon DeDeo, \& Daniel Yurovsky}
    
 abstract: |
   Over their first years of life, children learn not just the words of their native languages, but how to use them to communicate. Because manual annotation of communicative intent does not scale to large corpora, our understanding of communicative act development is limited to case studies of a few children at a few time points. We present an approach to automatic identification of communicative acts using a Hidden Topic Markov Model, applying it to the CHILDES database. We first describe qualitative changes in parent-child communication over development, and then use our method to demonstrate two large-scale features of communicative development: (1) children develop a parent-like repertoire of our model's communicative acts rapidly, their learning rate peaking around 12 months of age, and (2) this period of steep repertoire change coincides with the highest predictability between parents' acts and children's, suggesting that structured interactions play a role in learning to communicate.
