@@ -24,7 +24,7 @@ use_condaenv("r-reticulate")
 ```
 
 
-```{python processXML}
+```{python}
 import os
 import runpy
 import sys
@@ -59,55 +59,72 @@ newList14 = []
 newList20 = []
 newList32 = []
 
+
 def process_xml(directory, listName, instance):
   for file in directory:
     something = instance.get_custom_sents(file)
+    env = instance.participants(file)
+    name = env[0]['CHI']['name']
+    head, sep, tail = file.partition(".")
+    age = instance.age(file, "CHI", int(head))
     for x in something:
       if not x[3]:
-        print('nothing here')
+        print("Nothing here")
       else:
-        if x[3][0]['type'] == 'speech act':
           try:
             if (len(x[3]) == 1):
               newGloss = ""
               for elem in x[5]:
                 newGloss += elem['gloss']
                 newGloss += " "
-              listName.append([x[0], x[1], "", newGloss.rstrip(), x[3][0]['text'], file])
-            elif ((x[3][1]['type'] == 'actions') | (x[3][1]['type'] == 'gesture')) & (len(x[5]) == 0):
-              listName.append([x[0], x[1], x[3][1]['text'], "", x[3][0]['text'], file])
+              if newGloss == "":
+                print(x)
+              else:
+                listName.append([name, x[0], x[1], "", newGloss.rstrip(), x[3][0]['text'], age])
+            #elif ((x[3][1]['type'] == 'actions') | (x[3][1]['type'] == 'gesture')) & (len(x[5]) == 0):
+              #listName.append([name, x[0], x[1], x[3][1]['text'], "", x[3][0]['text'], age])
             elif (x[3][1]['type'] == 'actions') | (x[3][1]['type'] == 'gesture'):
               newGloss = ""
               for elem in x[5]:
                 newGloss += elem['gloss']
                 newGloss += " "
-              listName.append([x[0], x[1], x[3][1]['text'], newGloss.rstrip(), x[3][0]['text'], file])
+              if newGloss == "":
+                print(x)
+              else:
+                listName.append([name, x[0], x[1], x[3][1]['text'], newGloss.rstrip(), x[3][0]['text'], age])
             elif ((x[3][1]['type'] == 'situation') | (x[3][1]['type'] == 'intonation') | (x[3][1]['type'] == 'comments') | (x[3][1]['type'] == 'paralinguistics') | (x[3][1]['type'] == 'extension') | (x[3][1]['type'] == 'explanation') ):
               newGloss = ""
               for elem in x[5]:
                 newGloss += elem['gloss']
                 newGloss += " "
-              listName.append([x[0], x[1], x[3][1]['text'], newGloss.rstrip(), x[3][0]['text'], file])
+              if newGloss == "":
+                print(x)
+              else:
+                listName.append([name, x[0], x[1], x[3][1]['text'], newGloss.rstrip(), x[3][0]['text'], age])
             elif(x[3][1]['type'] == 'time stamp'):
               newGloss = ""
               for elem in x[5]:
                 newGloss += elem['gloss']
                 newGloss += " "
-              listName.append([x[0], x[1], "", newGloss.rstrip(), x[3][0]['text'], file])
+              if newGloss == "":
+                print(x)
+              else:  
+                listName.append([name, x[0], x[1], "", newGloss.rstrip(), x[3][0]['text'], age])
             else:
               newGloss = ""
               for elem in x[5]:
                 newGloss += elem['gloss']
                 newGloss += " "
-              listName.append([x[0], x[1], x[3][2]['text'], newGloss.rstrip(), x[3][0]['text'], file])
+              if newGloss == "":
+                print(x)
+              else:
+                listName.append([name, x[0], x[1], x[3][2]['text'], newGloss.rstrip(), x[3][0]['text'], age])
           except NameError:
             print("Name Error")
           except IndexError:
-            print(x)
+            print("Index Error")
           except KeyError:
             print("Key Error")
-          else:
-            print("Woo!")
 
 process_xml(dirs_with_xml, newList14, instance14)
 process_xml(dirs_with_xml_20, newList20, instance20)
@@ -117,7 +134,8 @@ process_xml(dirs_with_xml_32, newList32, instance32)
 
 ```{r}
 classCorpus14 <- py$newList14
-dataFrameCorpus14 <- data.frame(utteranceNumber = "utteranceNumber",
+dataFrameCorpus14 <- data.frame(name = "name",
+                              utteranceNumber = "utteranceNumber",
                               speakerCode = "speakerCode",
                               motion = "motion",
                               gloss = "gloss",
@@ -127,7 +145,8 @@ for(elem in classCorpus14) {
   dataFrameCorpus14<- rbind(dataFrameCorpus14, elem)
 }
 classCorpus20 <- py$newList20
-dataFrameCorpus20 <- data.frame(utteranceNumber = "utteranceNumber",
+dataFrameCorpus20 <- data.frame(name = "name",
+                              utteranceNumber = "utteranceNumber",
                               speakerCode = "speakerCode",
                               motion = "motion",
                               gloss = "gloss",
@@ -138,7 +157,8 @@ for(elem in classCorpus20) {
 }
 
 classCorpus32 <- py$newList32
-dataFrameCorpus32 <- data.frame(utteranceNumber = "utteranceNumber",
+dataFrameCorpus32 <- data.frame(name = "name",
+                              utteranceNumber = "utteranceNumber",
                               speakerCode = "speakerCode",
                               motion = "motion",
                               gloss = "gloss",
@@ -161,7 +181,7 @@ dataFrameCorpus[,6] <- gsub("\\..*", "", dataFrameCorpus[,6])
 dataFrameCorpus <- dataFrameCorpus[-1, ]
 dataFrameCorpus <- separate(dataFrameCorpus, speechAct, c("speechAct1", "speechAct2"), 5)
 dataFrameCorpus[,5] <- gsub(":", "", dataFrameCorpus[,5])
-dataFrameCorpus[,5] <- gsub("$", "", dataFrameCorpus[,5])
+dataFrameCorpus[,5] <- gsub("[\\$]", "", dataFrameCorpus[,5])
 dataFrameCorpus[,6] <- gsub("\\. *", "", dataFrameCorpus[,6])
 
 #split into speechAct 3 & 4 for extras
@@ -170,5 +190,16 @@ dataFrameCorpus <- separate(dataFrameCorpus, speechAct3, c("speechAct3", "speech
 dataFrameCorpus[,7] <- gsub(":", "", dataFrameCorpus[,7])
 dataFrameCorpus[,1] <- gsub("u", "", dataFrameCorpus[,1])
 
-write.csv(dataFrameCorpus, "/Users/zoemarshall/Desktop/A Clean Desktop/childesResearch2020/childlanguageinfo/data/newEnglandSpeechActs.csv")
+
+dataFrameCorpus <- dataFrameCorpus %>%
+  filter(speakerCode != "INV")
+
+corpusFiltered <- dataFrameCorpus %>%
+  mutate(motion2 = if_else(str_detect(speechAct1, "MOT"), paste0(speechAct1, speechAct2, speechAct3, speechAct4), "")) %>%
+  mutate(speechAct4 = if_else(str_detect(speechAct1, "MOT"), "", speechAct4)) %>%
+  mutate(speechAct3 = if_else(str_detect(speechAct1, "MOT"), "", speechAct3)) %>%
+  mutate(speechAct2 = if_else(str_detect(speechAct1, "MOT"), "", speechAct2)) %>%
+  mutate(speechAct1 = if_else(str_detect(speechAct1, "MOT"), "", speechAct1))
+
+write.csv(corpusFiltered, "/Users/zoemarshall/Desktop/A Clean Desktop/childesResearch2020/childlanguageinfo/data/newEnglandSpeechActs.csv")
 ```
