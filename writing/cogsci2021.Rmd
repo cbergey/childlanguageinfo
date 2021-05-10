@@ -48,8 +48,6 @@ library(spgs)
 library(entropy)
 library(glue)
 library(viridis)
-
-theme_set(theme_few(base_size = 10))
 ```
 
 ```{r read-data}
@@ -276,10 +274,12 @@ ggplot(branching, aes(x = age_bin, y = n, group = max_topic,
              fill = as.factor(max_topic))) +
   geom_area(position = "fill", color = "black") +
   facet_wrap(~speaker_role) +
+  theme_few(base_size = 10) +
   theme(legend.position = "none") + 
   geom_text(aes(label = topic_name), size = 2.5, color = "white", hjust = 1,
             data = branching_annotations) +
-  labs(x = "Age (months)", y = "Communicative act proportion")
+  labs(x = "Age (months)", y = "Communicative act proportion") 
+
 ```
 
 Children's use of communicative acts changes drastically as they grow (Figure \ref{fig:branching_out_plot}). Early on, children's utterances are predominantly backchannels, interjections, and affirmations or negations (e.g., "yeah", "no", "uh huh"). By around 20 months of age, social routines such as greetings and naming family members (e.g., "hi", "bye", "mommy") displace backchannels to become a substantial part of children's repertoire. Around the same age, an increasing proportion of children's utterances direct attention to or label things in the environment (e.g., "what's that?", "there's a..."). Parents also increasingly use these labeling utterances when their children are around 15-30 months old; after about 30 months, these utterances diminish in both parent and child speech. 
@@ -363,13 +363,14 @@ mutual_information %>%
   ylab("Mutual Information (bits)") +
   xlab("Age") +
   ggtitle("") +
+  theme_few(base_size = 10) +
   theme(legend.position = "none") +
   geom_text(aes(label = type), data = mi_annotations)
 ```
 
 When children are young, mutual information is highest between the child's current utterance and their own last utterance [\ref{fig:mi}]. One way to interpret this is that the child is on their own conversational track, steered less by what their conversational partner just said than what they themselves said prior. By around 24 months, this tendency lessens considerably, but children remain more predictable based on their own prior utterances than based on their parents' utterances across our age range.
 
-Interestingly, there is an increase in mutual information in all three of our measures--parents $\vert$ children, children $\vert$ parents, and children $\vert$ children--from the beginning of our age range peaking at about 12-20 months, after which mutual information declines or stays steady. Though this is an exploratory finding, it points to the possibility that parents and children interact most contingently when children are still quite young. That is, at the youngest ages, there may be low mutual information between parents' and children's utterances because of disorganized interaction; mutual information may then increase as sequences become more orderly, but discourse is not necessarily structured on longer timescales; and mutual information may fall again as discourse structure emerges that is not captured in sequential utterance transitions. The point of highest mutual information coincides with the point of steepest growth in communicative act entropy, suggesting that learning of communicative acts is most rapid when interactions have the most sequential structure. This finding is in line with theories of communicative development that emphasize highly routinized interactions as crucial for learning to engage in structured discourse [@bruner1985]. 
+Interestingly, there is an increase in mutual information in all three of our measures--$\text{parents} \vert \text{children}$, $\text{children} \vert \text{parents}$, and $\text{children} \vert \text{children}$--from the beginning of our age range peaking at about 12-20 months, after which mutual information declines or stays steady. Though this is an exploratory finding, it points to the possibility that parents and children interact most contingently when children are still quite young. That is, at the youngest ages, there may be low mutual information between parents' and children's utterances because of disorganized interaction; mutual information may then increase as sequences become more orderly, but discourse is not necessarily structured on longer timescales; and mutual information may fall again as discourse structure emerges that is not captured in sequential utterance transitions. The point of highest mutual information coincides with the point of steepest growth in communicative act entropy, suggesting that learning of communicative acts is most rapid when interactions have the most sequential structure. This finding is in line with theories of communicative development that emphasize highly routinized interactions as crucial for learning to engage in structured discourse [@bruner1985]. 
 
 # Discussion
 
