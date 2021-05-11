@@ -288,6 +288,7 @@ ggplot(branching, aes(x = age_bin, y = n, group = max_topic,
   theme(legend.position = "none") + 
   geom_text(aes(label = topic_name), size = 2.5, color = "white", hjust = 1,
             data = branching_annotations) +
+  scale_x_continuous(breaks = c(12,24,36,48,60)) +
   labs(x = "Age (months)", y = "Communicative act proportion") 
 
 ```
@@ -358,10 +359,10 @@ Over development, children gain the ability to engage in more structured dialogu
 To calculate the mutual information between parents' and children's utterances, we use the full distribution of communicative act probabilities for each utterance produced by the model. These probabilities are averaged within turns; that is, if a child produced four utterances in a row, the probabilities are averaged to produce one probability per act type per turn. We then compute conditional probabilities for each current act type given each prior act type. These conditional probabilities are used to calculate mutual information. We calculate mutual information values for the parent's utterance given the child's prior utterance, the child's utterance given the parent's prior utterance, and the child's utterance given their own prior utterance (their own most recent turn).
 
 ```{r mi, fig.cap = "Mutual information between parents' and children's communicative acts over development. We show mutual information for parents' utterances given a child's prior utterance (Parent $|$ Child), children's utterances given a parent's prior utterance (Child $|$ Parent), children's utterances given their own most recent utterance (Child $|$ Child), and parents' utterances given their own most recent utterance (Parent $|$ Parent)."}
-mi_annotations <- tibble(age_bin = c(26, 32, 22, 36), 
+mi_annotations <- tibble(age_bin = c(26, 32, 22, 38), 
                          type = c("Child | Child", "Parent | Child",
                                   "Child | Parent", "Parent | Parent"),
-                         mi = c(.3, .22, .08, .06))
+                         mi = c(.3, .22, .08, .04))
 
 mutual_information %>%
   mutate(type = case_when(type == "child_given_child" ~ "Child | Child",
@@ -376,6 +377,7 @@ mutual_information %>%
   ggtitle("") +
   theme_few(base_size = 10) +
   theme(legend.position = "none") +
+  scale_x_continuous(breaks = c(12,24,36,48,60)) +
   geom_text(aes(label = type), data = mi_annotations)
 ```
 
