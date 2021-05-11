@@ -2,6 +2,7 @@ library(here)
 library(tidyverse)
 library(feather)
 library(entropy)
+library(philentropy)
 
 childes_htmm_pdwz <- read_feather(here("data/childes_htmm_15.feather")) 
 childes_keep <- childes_htmm_pdwz %>%
@@ -76,7 +77,15 @@ get_prob_t_matrix <- function(df) {
     mutate(speaker = "child_self") %>%
     cbind(topic_probs) 
   
-  return(bind_rows(parent_matrix, child_matrix, child_self) %>% 
+  parent_rows <- parent_rows[parent_rows > 2]
+  
+  parent_self <- map(parent_rows, 
+                    ~matrix_from_rows(df %>% slice(.x - 2), df %>% slice(.x))) %>%
+    Reduce('+', .) %>% as.tibble() %>%
+    mutate(speaker = "parent_self") %>%
+    cbind(topic_probs) 
+  
+  return(bind_rows(parent_matrix, child_matrix, child_self, parent_self) %>% 
            rename(prior_topic = topic_probs))
 }
 
@@ -158,7 +167,14 @@ get_mis_sequential <- function(transcripts) {
     summarise(mi = sum(term)) %>%
     mutate(type = "child_given_child")
   
-  all_mis <- rbind(child_given_parent, parent_given_child, child_given_child)
+  parent_given_parent <- all_probs %>%
+    filter(speaker == "parent_self") %>%
+    mutate(term = joint_prob * log2(joint_prob/(prior_topic_prob * current_topic_prob))) %>%
+    group_by(age_bin) %>%
+    summarise(mi = sum(term)) %>%
+    mutate(type = "parent_given_parent")
+  
+  all_mis <- rbind(child_given_parent, parent_given_child, child_given_child, parent_given_parent)
   return(all_mis)
 }
 
@@ -223,3 +239,7 @@ joint_probs_normed %>%
   scale_fill_gradientn(colours = viridis(256, option = "D"))
 
 #write_csv(joint_probs_normed, here("data/joint_probs_normed.csv"))
+
+
+
+  
