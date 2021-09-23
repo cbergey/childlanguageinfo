@@ -17,189 +17,123 @@ library(tidyverse)
 library(plotly)
 library(reticulate)
 library(entropy)
-library(tidyboot)
 library(data.table)
 library(tidyr)
 use_condaenv("r-reticulate")
 ```
 
-
 ```{python}
+import pylangacq
+import math
+import array
 import os
-import runpy
-import sys
-sys.path.insert(1, "/Users/zoemarshall/Desktop/A Clean Desktop/childesResearch2020/childes-db/djangoapp/db")
-import childes
+from itertools import chain
 
-instance14 = childes.CHILDESCorpusReader(root = "/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/14", fileids = os.listdir("/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/14"))
-
-dirs_with_xml = []
-for root, dirs, files in os.walk("/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/14"):
-  for file in files:
-    if file.endswith(".xml"):
-      dirs_with_xml.append(file)
-      
-instance20 = childes.CHILDESCorpusReader(root = "/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/20", fileids = os.listdir("/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/20"))
-
-dirs_with_xml_20 = []
-for root, dirs, files in os.walk("/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/20"):
-  for file in files:
-    if file.endswith(".xml"):
-      dirs_with_xml_20.append(file)
-      
-instance32 = childes.CHILDESCorpusReader(root = "/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/32", fileids = os.listdir("/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/32"))
-
-dirs_with_xml_32 = []
-for root, dirs, files in os.walk("/Users/zoemarshall/nltk_data/corpora/childes/data-xml/Eng-USA/NewEngland 3/32"):
-  for file in files:
-    if file.endswith(".xml"):
-      dirs_with_xml_32.append(file)
-    
-newList14 = []
-newList20 = []
-newList32 = []
-
-
-def process_xml(directory, listName, instance):
-  for file in directory:
-    something = instance.get_custom_sents(file)
-    env = instance.participants(file)
-    name = env[0]['CHI']['name']
-    head, sep, tail = file.partition(".")
-    age = instance.age(file, "CHI", int(head))
-    for x in something:
-      if not x[3]:
-        print("Nothing here")
+def create(data):
+  main = []
+  data_utterances = data.utterances()
+  for utterance in data_utterances:
+    one_list = []
+    one_list.append(utterance.participant)
+  
+    sentence = ""
+    pos_sentence = ""
+    token = utterance.tokens
+    for single_token in token:
+      if (single_token.word != "CLITIC"):
+        sentence = sentence+" "+single_token.word
+      if (single_token.pos is not None) & (single_token.pos != "CLITIC"):
+        pos_sentence = pos_sentence+" "+single_token.pos
       else:
-          try:
-            if (len(x[3]) == 1):
-              newGloss = ""
-              for elem in x[5]:
-                newGloss += elem['gloss']
-                newGloss += " "
-              if newGloss == "":
-                print(x)
-              else:
-                listName.append([name, x[0], x[1], "", newGloss.rstrip(), x[3][0]['text'], age])
-            #elif ((x[3][1]['type'] == 'actions') | (x[3][1]['type'] == 'gesture')) & (len(x[5]) == 0):
-              #listName.append([name, x[0], x[1], x[3][1]['text'], "", x[3][0]['text'], age])
-            elif (x[3][1]['type'] == 'actions') | (x[3][1]['type'] == 'gesture'):
-              newGloss = ""
-              for elem in x[5]:
-                newGloss += elem['gloss']
-                newGloss += " "
-              if newGloss == "":
-                print(x)
-              else:
-                listName.append([name, x[0], x[1], x[3][1]['text'], newGloss.rstrip(), x[3][0]['text'], age])
-            elif ((x[3][1]['type'] == 'situation') | (x[3][1]['type'] == 'intonation') | (x[3][1]['type'] == 'comments') | (x[3][1]['type'] == 'paralinguistics') | (x[3][1]['type'] == 'extension') | (x[3][1]['type'] == 'explanation') ):
-              newGloss = ""
-              for elem in x[5]:
-                newGloss += elem['gloss']
-                newGloss += " "
-              if newGloss == "":
-                print(x)
-              else:
-                listName.append([name, x[0], x[1], x[3][1]['text'], newGloss.rstrip(), x[3][0]['text'], age])
-            elif(x[3][1]['type'] == 'time stamp'):
-              newGloss = ""
-              for elem in x[5]:
-                newGloss += elem['gloss']
-                newGloss += " "
-              if newGloss == "":
-                print(x)
-              else:  
-                listName.append([name, x[0], x[1], "", newGloss.rstrip(), x[3][0]['text'], age])
-            else:
-              newGloss = ""
-              for elem in x[5]:
-                newGloss += elem['gloss']
-                newGloss += " "
-              if newGloss == "":
-                print(x)
-              else:
-                listName.append([name, x[0], x[1], x[3][2]['text'], newGloss.rstrip(), x[3][0]['text'], age])
-          except NameError:
-            print("Name Error")
-          except IndexError:
-            print("Index Error")
-          except KeyError:
-            print("Key Error")
+        continue
+    one_list.append(sentence.lstrip())
+    one_list.append(pos_sentence.lstrip())
+  
+    tier = utterance.tiers
+    if '%spa' in tier.keys():
+      one_list.append(tier['%spa'])
+    else:
+      continue
+    
+    if '%gpx' in tier.keys():
+      one_list.append(tier['%gpx'])
+    else:
+      one_list.append("No motion recorded")
+  
+    main.append(one_list)
+  
+  counter = 1
+  for utt in main:
+    utt.insert(0, math.floor(data.ages(months = True)[0]))
+    utt.insert(0, data.headers()[0]['Participants']['CHI']['name'])
+    utt.insert(0, counter)
+    counter += 1
+    
+  return main
 
-process_xml(dirs_with_xml, newList14, instance14)
-process_xml(dirs_with_xml_20, newList20, instance20)
-process_xml(dirs_with_xml_32, newList32, instance32)
+
+dirs_with_cha = []
+for root, dirs, files in os.walk("/Users/zoemarshall/Documents/NewEngland/14"):
+  for file in files:
+    if file.endswith(".cha"):
+      dirs_with_cha.append("/Users/zoemarshall/Documents/NewEngland/14/"+file)
+      
+for root, dirs, files in os.walk("/Users/zoemarshall/Documents/NewEngland/20"):
+  for file in files:
+    if file.endswith(".cha"):
+      dirs_with_cha.append("/Users/zoemarshall/Documents/NewEngland/20/"+file)
+      
+for root, dirs, files in os.walk("/Users/zoemarshall/Documents/NewEngland/32"):
+  for file in files:
+    if file.endswith(".cha"):
+      dirs_with_cha.append("/Users/zoemarshall/Documents/NewEngland/32/"+file)
+      
+for root, dirs, files in os.walk("/Users/zoemarshall/Documents/NewEngland/60"):
+  for file in files:
+    if file.endswith(".cha"):
+      dirs_with_cha.append("/Users/zoemarshall/Documents/NewEngland/60/"+file)
+
+final = []
+
+for file in dirs_with_cha:
+  data = pylangacq.read_chat(file)
+  final.append(create(data))
+
+final2 = [x for x in final if x != []]
+final = list(chain.from_iterable(final2))
 ```
 
 
 ```{r}
-classCorpus14 <- py$newList14
-dataFrameCorpus14 <- data.frame(name = "name",
-                              utteranceNumber = "utteranceNumber",
+classCorpus <- py$final
+dataFrameCorpus <- data.frame(utteranceNumber = "utteranceNumber",
+                              name = "name",
+                              age = "age",
                               speakerCode = "speakerCode",
-                              motion = "motion",
                               gloss = "gloss",
+                              pos = "pos",
                               speechAct = "speechAct",
-                              transcriptID = "transcriptID")
-for(elem in classCorpus14) {
-  dataFrameCorpus14<- rbind(dataFrameCorpus14, elem)
-}
-classCorpus20 <- py$newList20
-dataFrameCorpus20 <- data.frame(name = "name",
-                              utteranceNumber = "utteranceNumber",
-                              speakerCode = "speakerCode",
-                              motion = "motion",
-                              gloss = "gloss",
-                              speechAct = "speechAct",
-                              transcriptID = "transcriptID")
-for(elem in classCorpus20) {
-  dataFrameCorpus20<- rbind(dataFrameCorpus20, elem)
+                              motion = "motion")
+for(elem in classCorpus) {
+  dataFrameCorpus<- rbind(dataFrameCorpus, elem)
 }
 
-classCorpus32 <- py$newList32
-dataFrameCorpus32 <- data.frame(name = "name",
-                              utteranceNumber = "utteranceNumber",
-                              speakerCode = "speakerCode",
-                              motion = "motion",
-                              gloss = "gloss",
-                              speechAct = "speechAct",
-                              transcriptID = "transcriptID")
-for(elem in classCorpus32) {
-  dataFrameCorpus32<- rbind(dataFrameCorpus32, elem)
-}
-
-dataFrameCorpus14 <- dataFrameCorpus14 %>%
-  mutate(age = 14)
-dataFrameCorpus20 <- dataFrameCorpus20 %>%
-  mutate(age = 20)
-dataFrameCorpus32 <- dataFrameCorpus32 %>%
-  mutate(age = 32)
-
-dataFrameCorpus <- rbind(dataFrameCorpus14, dataFrameCorpus20, dataFrameCorpus32)
-
-dataFrameCorpus[,6] <- gsub("\\..*", "", dataFrameCorpus[,6]) 
 dataFrameCorpus <- dataFrameCorpus[-1, ]
-dataFrameCorpus <- separate(dataFrameCorpus, speechAct, c("speechAct1", "speechAct2"), 5)
-dataFrameCorpus[,5] <- gsub(":", "", dataFrameCorpus[,5])
-dataFrameCorpus[,5] <- gsub("[\\$]", "", dataFrameCorpus[,5])
-dataFrameCorpus[,6] <- gsub("\\. *", "", dataFrameCorpus[,6])
-
-#split into speechAct 3 & 4 for extras
-dataFrameCorpus <- separate(dataFrameCorpus, speechAct2, c("speechAct2", "speechAct3"), 3)
-dataFrameCorpus <- separate(dataFrameCorpus, speechAct3, c("speechAct3", "speechAct4"), 5)
-dataFrameCorpus[,7] <- gsub(":", "", dataFrameCorpus[,7])
-dataFrameCorpus[,1] <- gsub("u", "", dataFrameCorpus[,1])
-
 
 dataFrameCorpus <- dataFrameCorpus %>%
   filter(speakerCode != "INV")
 
-corpusFiltered <- dataFrameCorpus %>%
-  mutate(motion2 = if_else(str_detect(speechAct1, "MOT"), paste0(speechAct1, speechAct2, speechAct3, speechAct4), "")) %>%
-  mutate(speechAct4 = if_else(str_detect(speechAct1, "MOT"), "", speechAct4)) %>%
-  mutate(speechAct3 = if_else(str_detect(speechAct1, "MOT"), "", speechAct3)) %>%
-  mutate(speechAct2 = if_else(str_detect(speechAct1, "MOT"), "", speechAct2)) %>%
-  mutate(speechAct1 = if_else(str_detect(speechAct1, "MOT"), "", speechAct1))
+dataFrameCorpus <- separate(dataFrameCorpus, speechAct, c("speechAct1", "speechAct2"), 5)
+dataFrameCorpus[,7] <- gsub(":", "", dataFrameCorpus[,7])
+dataFrameCorpus[,7] <- gsub("[\\$]", "", dataFrameCorpus[,7])
 
-write.csv(corpusFiltered, "/Users/zoemarshall/Desktop/A Clean Desktop/childesResearch2020/childlanguageinfo/data/newEnglandSpeechActs.csv")
+#split into speechAct 3 & 4 for extras
+dataFrameCorpus <- separate(dataFrameCorpus, speechAct2, c("speechAct2", "speechAct3"), 3)
+dataFrameCorpus <- separate(dataFrameCorpus, speechAct3, c("speechAct3", "speechAct4"), 5)
+dataFrameCorpus[,8] <- gsub(":", "", dataFrameCorpus[,8])
+dataFrameCorpus[,9] <- gsub(":", "", dataFrameCorpus[,9])
+dataFrameCorpus[,9] <- gsub("[\\$]", "", dataFrameCorpus[,9])
+
+
+write.csv(dataFrameCorpus, "/Users/zoemarshall/Downloads/childlanguageinfo/data/newEnglandSpeechActs.csv")
 ```
