@@ -6,27 +6,28 @@ author:
   - name          : "Claire Bergey"
     affiliation   : "1"
     corresponding : yes    # Define only one corresponding author
-    address       : "Postal address"
+    address       : "5848 S. University Avenue, Chicago, Illinois 60637"
     email         : "cbergey@uchicago.edu"
   - name          : "Zoe Marshall"
     affiliation   : "2"
   - name          : "Simon DeDeo"
-    affiliation   : "2,3"
+    affiliation   : "2,4"
   - name          : "Dan Yurovsky"
     affiliation   : "2"
 
 affiliation:
   - id            : "1"
-    institution   : "University of Chicago"
+    institution   : "Department of Psychology, University of Chicago"
   - id            : "2"
-    institution   : "Carnegie Mellon University"
+    institution   : "Department of Psychology, Carnegie Mellon University"
   - id            : "3"
     institution   : "Santa Fe Institute"
+  - id            : "4"
+    institution   : "Department of Social and Decision Sciences, Carnegie Mellon University"
 
 authornote: |
-  Add complete departmental affiliations for each author here. Each new line herein must be indented, like this line.
-
-  Enter author note here.
+  The authors thank Marisa Casillas and Thea Cameron-Faulkner for discussions about this work’s theoretical basis and Benjamin C. Morris, Ashley Leung, Megan Waller and Yuchen Zhou for feedback on the manuscript. The authors are grateful for discussion and questions from the Language Evolution, Acquisition, and Processing group and the Goldin-Meadow lab at the University of Chicago and the audience at the 43rd Annual Meeting of the Cognitive Science Society. This work was funded by the James S. McDonnell Foundation Scholar Award in Understanding Human Cognition to the last author and the Carnegie Mellon Summer Undergraduate Research Fellowship to the second author.
+  
 
 abstract: |
   Over their first years of life, children learn not just the words of their native languages, but how to use them to communicate. Because manual annotation of communicative intent does not scale to large corpora, our understanding of communicative act development is limited to case studies of a few children at a few time points. We present an approach to automatic identification of communicative acts using a Hidden Topic Markov Model, applying it to the CHILDES database. We first describe qualitative changes in parent-child communication over development, and then use our method to demonstrate two large-scale features of communicative development: (1) children develop a parent-like repertoire of our model's communicative acts rapidly, their learning rate peaking around 14 months of age, and (2) this period of steep repertoire change coincides with the highest predictability between parents' acts and children's, suggesting that structured interactions play a role in learning to communicate.
@@ -151,28 +152,34 @@ Here, we characterize children's growing repertoire of communicative acts using 
 
 We used transcripts of conversations from the Child Language Data Exchange System (CHILDES), a database of child conversation corpora [@macwhinney_childes_2000]. These corpora predominantly record spontaneous conversations between children and their family members, often in the home. We trained our model on transcripts from the North American English collection of CHILDES among children under 60 months old, and filtered these transcripts to include only utterances spoken by the target child or their parents. To exclude transcripts with extremely sparse child utterances, our analyses include children 6 to 60 months old, and transcripts with at least 10 child utterances and 10 parent utterances. Overall, our training data included `r n_transcripts_unfiltered` transcripts from `r n_children_unfiltered` children, and here we analyze `r n_transcripts` transcripts from `r n_children` children. 
 
-```{r topic-table, results="asis", fig.cap = "The most distinctive words in each topic. Distinctiveness is measured by the difference between a word's probability in a given topic and its average probability across all topics."}
+```{r topic-table, results="asis"}
 
 topics <- c("mental states", "labeling", "counting", "evaluation", "proposed actions",
-            "non-present events", "??", "requests", "knowledge questions", 
+            "non-present events", "miscellaneous", "requests", "knowledge questions", 
             "location", "social routines", "backchannels",
             "description", "storytelling", "body routines")
 
-tab <- childes_htmm_phi %>%
+topic_tab <- childes_htmm_phi %>%
   mutate(phi_diff = phi - avg_phi) %>%
   filter(model == "15") %>%
   group_by(topic) %>%
   arrange(desc(phi_diff)) %>%
-  slice(1:15) %>%
-  mutate(num = 1:15) %>%
+  filter(!is.na(word)) %>%
+  slice(1:12) %>%
+  mutate(num = 1:12) %>%
   ungroup() %>%
-  select(topic, num, word) %>% 
-  pivot_wider(names_from = num, values_from = word)  %>%
-  mutate(topic_name = topics) %>% select(topic, topic_name, everything())
+  select(topic, num, word) %>%
+  pivot_wider(names_from = num, names_prefix = "word_", values_from = word)  %>%
+  mutate(topic_name = topics, topic = as.character(topic)) %>% select(topic, topic_name, everything()) %>%
+  unite("distinctive_words", word_1:word_12, sep = ", ") %>%
+  rename("Topic" = "topic", "Topic Name" = "topic_name", "Distinctive Words" = "distinctive_words")
 
-img <- png::readPNG(here("writing/figs/topic-tab.png"))
-grid::grid.raster(img)
+# version of table as image
+# img <- png::readPNG(here("writing/figs/topic-tab.png"))
+# grid::grid.raster(img)
 
+apa_table(topic_tab, font_size = "footnotesize",
+         caption = "The most distinctive words in each topic. Distinctiveness is measured by the difference between a word's probability in a given topic and its average probability across all topics. Tokens for utterances with all non-words are not included here.")
 ```
 
 ## Model
@@ -195,7 +202,7 @@ We begin by showing that the model captures some aspects of communicative acts a
 
 After training, the model produces a set of topics with associated probability distributions over words. One can conceive of these topics as bags of words, in which some words will be highly likely to be produced and others will be unlikely to be produced. Using this probability distribution of words within topics, the model also produces a probability distribution over topics for each utterance in the corpus. Since we aim to characterize communicative acts and not thematic content or conversational topics, the label 'topic' for these types can be misleading; from here on, we will refer to these types as communicative acts rather than topics.
 
-The most distinctive words of each communicative act in the model, as measured by the difference between a word's probability within a type of act and its average probability across all act types, are shown in Figure \ref{fig:topic-table}. Assigning labels to these acts is subjective. We examined these most distinctive words and looked at samples of utterances in each act type to produce labels that capture the gist of each automatically identified topic, for clarity of exposition. 
+The most distinctive words of each communicative act in the model, as measured by the difference between a word's probability within a type of act and its average probability across all act types, are shown in Table \ref{tab:topic-table}. Assigning labels to these acts is subjective. We examined these most distinctive words and looked at samples of utterances in each act type to produce labels that capture the gist of each automatically identified topic, for clarity of exposition. 
 
 Not all communicative act categories are equally coherent, but even these top distinctive words are illuminating. These distinctive words are largely function words and other very common words, not content-related words. This suggests that the model is picking up on distinctions between utterances that are not just conversational topics or themes. Further, several act types have fairly coherent sets of words, such as backchannels and interjections (e.g., "okay", "mm", "no", "huh"), requests (e.g., "you", "want", "have", "some"), and counting (e.g., "two", "one", "three", "dis"). On the other hand, these types clearly do capture some aspects of thematic content: the request type has several food-related words, and while the body routines type (e.g., "on", "put", "head", "off") contains many commands and statements about current activities, it is united by words about the body. These types are likely capturing a mixture of semantic content and communicative function, which are likely quite correlated in children's language environments.
 
@@ -246,7 +253,7 @@ apa_table(snippet, font_size = "footnotesize",
          caption = "Three examples of the same communicative act sequence (5, 12, 4, 5) in conversations between different parents (P) and children (C) at different ages. Though they involve different topical content, they follow a similar communicative pattern: a suggestion or request regarding action and location; an affirmative or negative response; an evaluative statement or question; and another suggestion regarding action and location.")
 ```
 
-To further validate our method, we considered sets of exchanges that share the same communicative act sequence but vary in their participants and content. Here and in Part 2, we consider patterns of usage when utterances are classified as their most probable act type. Table \ref{tab:snippet_table} shows three exchanges with the same act sequence between parents and their 23-, 39-, and 57-month-olds. Each exchange begins with a proposed action which receives a backchannel, the action is evaluated, and a new action is proposed. Across these three examples, the words in the utterances are different, and sometimes even of opposite valence (e.g., "okay" vs. "no no"). The role of the speaker also varies--the same act can be produced by both parents and children. Nonetheless, there is a structural resemblance across them. 
+To further validate our method, we considered sets of exchanges that share the same communicative act sequence but vary in their participants and content. Here and in Part 2, we consider patterns of usage when utterances are classified as their most probable act type. Table \ref{tab:snippet-table} shows three exchanges with the same act sequence between parents and their 23-, 39-, and 57-month-olds. Each exchange begins with a proposed action which receives a backchannel, the action is evaluated, and a new action is proposed. Across these three examples, the words in the utterances are different, and sometimes even of opposite valence (e.g., "okay" vs. "no no"). The role of the speaker also varies--the same act can be produced by both parents and children. Nonetheless, there is a structural resemblance across them. 
 
 Bolstered by the coherence of communicative act categories and the resemblance of their sequences, we next provide first qualitative and then quantitative descriptions of parents' and children's production of these acts over development. 
 
@@ -264,7 +271,7 @@ word_entropies <- read_csv(here("data/childes_word_entropies.csv"))
 ```
 
 
-```{r branching-out-plot, fig.align = "left", fig.cap = "The proportion of utterances classified as each communicative act type produced by children and parents across development."}
+```{r branching-out-plot, fig.align = "left", fig.cap = "The proportion of utterances classified as each communicative act type produced by children and parents across development.", fig.width = 6, fig.height =3}
 topics <- c("mental states", "labeling", "counting", "evaluation", "proposed actions",
             "non-present events", "misc", "requests", "knowledge questions", 
             "location", "social routines", "backchannels",
@@ -396,7 +403,7 @@ type_entropies <- topic_entropies %>%
 
 
 
-```{r entropy-plot, out.width="1.05\\linewidth", include=TRUE, fig.align="center", fig.cap = "Entropy of communicative acts and words produced by children and parents over development.", echo = FALSE}
+```{r entropy-plot, out.width="70%", include=TRUE, fig.align="tb", fig.cap = "Entropy of communicative acts and words produced by children and parents over development.", echo = FALSE}
 knitr::include_graphics(here("writing/figs/entropy-plot.pdf"))
 ```
 ## Part 3: Dynamics of communicative acts in conversation
@@ -405,7 +412,7 @@ Over development, children gain the ability to engage in more structured dialogu
 
 To calculate the mutual information between parents' and children's utterances, we use the full distribution of communicative act probabilities for each utterance produced by the model. These probabilities are averaged within turns; that is, if a child produced four utterances in a row, the probabilities are averaged to produce one probability per act type per turn. We then compute conditional probabilities for each current act type given each prior act type. These conditional probabilities are used to calculate mutual information. We calculate mutual information values for the parent's utterance given the child's prior utterance, the child's utterance given the parent's prior utterance, the child's utterance given their own prior utterance (their own most recent turn), and the parent's utterance given their own prior utterance.
 
-```{r mi, fig.cap = "Mutual information between parents' and children's communicative acts over development. We show mutual information for parents' utterances given a child's prior utterance (Parent $|$ Child), children's utterances given a parent's prior utterance (Child $|$ Parent), children's utterances given their own most recent utterance (Child $|$ Child), and parents' utterances given their own most recent utterance (Parent $|$ Parent)."}
+```{r mi, fig.height = 3, fig.width = 6, fig.cap = "Mutual information between parents' and children's communicative acts over development. We show mutual information for parents' utterances given a child's prior utterance (Parent $|$ Child), children's utterances given a parent's prior utterance (Child $|$ Parent), children's utterances given their own most recent utterance (Child $|$ Child), and parents' utterances given their own most recent utterance (Parent $|$ Parent)."}
 mi_annotations <- tibble(age_bin = c(26, 32, 22, 38), 
                          type = c("Child | Child", "Parent | Child",
                                   "Child | Parent", "Parent | Parent"),
