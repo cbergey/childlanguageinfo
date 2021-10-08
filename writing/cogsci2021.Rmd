@@ -291,6 +291,30 @@ ggplot(branching, aes(x = age_bin, y = n, group = max_topic,
   scale_x_continuous(breaks = c(12,24,36,48,60)) +
   labs(x = "Age (months)", y = "Communicative act proportion") 
 
+branching_plot <- ggplot(branching, aes(x = age_bin, y = n, group = max_topic, 
+             fill = as.factor(max_topic))) +
+  geom_area(position = "fill", color = "black") +
+  facet_wrap(~speaker_role) +
+  theme_few(base_size = 10) +
+  theme(legend.position = "none") + 
+  geom_text(aes(label = topic_name), size = 2.5, color = "white", hjust = 1,
+            data = branching_annotations) +
+  scale_x_continuous(breaks = c(12,24,36,48,60)) +
+  labs(x = "Age (months)", y = "Communicative act proportion") +
+  theme(
+    strip.background =element_rect(fill="transparent"),
+    panel.background = element_rect(fill = "transparent"), # bg of the panel
+    plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+    panel.grid.major = element_blank(), # get rid of major grid
+    panel.grid.minor = element_blank(), # get rid of minor grid
+    legend.background = element_rect(fill = "transparent"), # get rid of legend bg
+    legend.box.background = element_rect(fill = "transparent"), # get rid of legend panel bg
+    legend.key = element_rect(fill = "transparent", colour = NA), # get rid of key legend fill, and of the surrounding
+    axis.line = element_line(colour = "black") # adding a black line for x and y axis
+)
+
+#ggsave(branching_plot, filename = "branching_plot.png",  width = 7, height = 3.5, units = "in", dpi = 300, bg = "transparent")
+
 ```
 
 Children's use of communicative acts changes drastically as they grow (Figure \ref{fig:branching_out_plot}). Early on, children's utterances are predominantly backchannels, interjections, and affirmations or negations (e.g., "yeah", "no", "uh huh"). By around 20 months of age, social routines such as greetings and naming family members (e.g., "hi", "bye", "mommy") displace backchannels to become a substantial part of children's repertoire. Around the same age, an increasing proportion of children's utterances direct attention to or label things in the environment (e.g., "what's that?", "there's a..."). Parents also increasingly use these labeling utterances when their children are around 15-30 months old; after about 30 months, these utterances diminish in both parent and child speech. 
@@ -375,6 +399,36 @@ mutual_information %>%
   theme(legend.position = "none") +
   scale_x_continuous(breaks = c(12,24,36,48,60)) +
   geom_text(aes(label = type), data = mi_annotations)
+
+
+mi_plot <-  mutual_information %>%
+  mutate(type = case_when(type == "child_given_child" ~ "Child | Child",
+                          type == "parent_given_child" ~ "Parent | Child",
+                          type == "child_given_parent" ~ "Child | Parent",
+                          type == "parent_given_parent" ~ "Parent | Parent")) %>%
+  ggplot(aes(age_bin, mi, color = type, group = type)) +
+  geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)) +
+  geom_line() +
+  ylab("Mutual Information (bits)") +
+  xlab("Age") +
+  ggtitle("") +
+  theme_few(base_size = 10) +
+  theme(legend.position = "none") +
+  scale_x_continuous(breaks = c(12,24,36,48,60)) +
+  geom_text(aes(label = type), data = mi_annotations)+
+  theme(
+    strip.background =element_rect(fill="transparent"),
+    panel.background = element_rect(fill = "transparent"), # bg of the panel
+    plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+    panel.grid.major = element_blank(), # get rid of major grid
+    panel.grid.minor = element_blank(), # get rid of minor grid
+    legend.background = element_rect(fill = "transparent"), # get rid of legend bg
+    legend.box.background = element_rect(fill = "transparent"), # get rid of legend panel bg
+    legend.key = element_rect(fill = "transparent", colour = NA), # get rid of key legend fill, and of the surrounding
+    axis.line = element_line(colour = "black") # adding a black line for x and y axis
+)
+
+#ggsave(mi_plot, filename = "mi_plot.png",  width = 4, height = 3.5, units = "in", dpi = 300, bg = "transparent")
 ```
 
 When children are young, mutual information is highest between the child's current utterance and their own last utterance (Figure \ref{fig:mi}). One way to interpret this is that the child is on their own conversational track, steered less by what their conversational partner just said than what they themself said prior. By around 24 months, this tendency lessens considerably, but children remain more predictable based on their own prior utterances than based on their parents' utterances across our age range.
