@@ -1,0 +1,266 @@
+---
+title: "full processing pipeline"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(knitr)
+library(here)
+library(dplyr)
+library(entropy)
+library(tidyboot)
+library(tidyverse)
+library(childesr)
+library(RColorBrewer)
+library(udpipe)
+library(feather)
+library(childesr)
+library(entropy)
+library(randomizeR)
+library(purrr)
+library(gsl)
+library(hash)
+
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+               error = FALSE, cache = TRUE, tidy = FALSE)
+
+theme_set(theme_classic(base_size = 14))
+```
+
+Read in and clean CHILDES North American English using childesr.
+
+```{r read-childes}
+utterances <- get_utterances(collection = "Eng-NA")
+types <- get_types(collection = "Eng-NA") 
+
+# clean the corpus
+cleanutts <- utterances %>%
+  filter(speaker_role %in% c("Target_Child", "Mother","Father")) %>% # get only utterances from the target child or their parents
+  mutate(gloss = str_to_lower(gloss),
+         gloss = str_remove_all(gloss, "xxx"),
+         gloss = str_remove_all(gloss, "yyy"),
+         gloss = str_remove_all(gloss, "www")) %>% # remove some non-words
+  filter(!is.na(target_child_age), str_squish(gloss) != "", target_child_age <= 60) %>% # get children < 60 mo
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code)) %>%
+  arrange(transcript_id,utterance_order)
+
+top_types <- types %>%
+  mutate(gloss = str_to_lower(gloss)) %>%
+  filter(gloss != "xxx", gloss != "yyy", gloss != "www") %>%
+  group_by(gloss) %>%
+  summarise(sum = sum(count)) %>%
+  slice_max(sum, n = 100)
+```
+
+The portion below uses part-of-speech tagging to make syntactic frame patterns. This is unnecessary for the HTMM analyses but was done during creation of the original dataset.
+
+```{r udpipe}
+udmodel <- udpipe_load_model(file = "english-ewt-ud-2.4-190531.udpipe")
+
+get_parse <- function(txt) {
+  parses <- txt %>%
+    udpipe(., udmodel, parallel.cores = 4) %>%
+    as_tibble() %>%
+    mutate(parse = if_else(token %in% top_types$gloss, token, upos),
+           parse = if_else((token == "'s" & upos == "PART"), upos, parse))
+
+  return(paste(parses$parse, collapse = " "))
+}
+
+vget_parse <- Vectorize(get_parse)
+
+get_word_parse <- function(txt) {
+  parses <- txt %>%
+    udpipe(., udmodel, parallel.cores = 4) %>%
+    as_tibble()
+  
+  return(paste(parses$token, collapse = " "))
+}
+
+contractions <- top_types %>%
+  rowwise() %>%
+  mutate(parsed = get_word_parse(gloss)) %>%
+  filter(gloss != parsed)
+
+left_out = c("do", "n't", "that", "'s", "it", "i", "'m", "what", "you", "'re", "let", "he")
+
+top_types <- top_types %>%
+  add_row(gloss = left_out) %>%
+  distinct(gloss)
+
+```
+
+```{r parsing}
+parsed_utts <- cleanutts %>%
+  rowwise() %>%
+  mutate(utt_parse = vget_parse(gloss))
+```
+
+Below, writes the frame that will be read in to be processed for the HTMM.
+
+```{r write-feather}
+#write_feather(parsed_utts, here("data/childes_parsed_frames.feather"))
+```
+
+Read back in CHILDES to prep for HTMM.
+
+```{r read_feather}
+framed_childes <- 
+  read_feather(here("data/childes_parsed_frames.feather")) %>%
+  mutate(transcript_id = as.numeric(transcript_id),
+         utterance_order = as.numeric(utterance_order),
+         target_child_age = as.numeric(target_child_age)) %>%
+  filter(target_child_age <= 60) %>%
+  filter(!str_detect(gloss, "yyy"),!str_detect(gloss, "xxx"),
+         !is.na(target_child_age)) %>%
+  mutate(speaker_code = ifelse(speaker_code == "MOM", "MOT", speaker_code),
+         speaker_code = ifelse(speaker_code == "DAD", "FAT", speaker_code))
+```
+
+```{r make-htmm-file}
+# make a dictionary of words that occur in the corpus
+make_dict <- function(corpus) {
+  dict <- corpus %>%
+    mutate(word = strsplit(as.character(gloss), " ")) %>% 
+    unnest(word) %>%
+    distinct(word) %>%
+    as_tibble(t(.))
+  dict$id <- seq.int(nrow(dict))
+  return(dict)
+}
+
+# get word ids from that correspond to an utterance, using a dict
+get_word_ids <- function(utterance) {
+  words <- str_split(utterance, " ")
+  id_sequence <- dict[match(words[[1]], dict$word),]$id %>%
+    paste(sep = " ", collapse = " ") 
+  return(id_sequence)
+}
+get_word_ids_v <- Vectorize(get_word_ids) # a vectorized version of this function
+
+# take a corpus and turn utterances into sequences of word ids
+get_word_codes <- function(corpus) {
+  corpus_coded <- corpus %>%
+    mutate(word_ids = get_word_ids_v(gloss),
+           sentence_length = str_count(word_ids, '\\w+')) %>%
+    select(transcript_id, sentence_length, word_ids) %>%
+    group_by(transcript_id) %>%
+    mutate(g = group_indices()) %>%
+    ungroup()
+  return(corpus_coded)
+}
+
+# make the dict for childes
+dict <- make_dict(framed_childes)
+# make childes utterances into sequences of word ids
+childes_print <- get_word_codes(framed_childes)
+
+# print the files that will be read in by HTMM code
+# uncomment the write lines to do this for real
+for (i in 1:n_distinct(childes_print$g)) {
+  transcript <- childes_print %>% filter(g == i) %>%
+    select(!c(g, transcript_id))
+  filename = paste0("data/childes_gloss/childes_gloss_for_htmm_", i)
+  # write.table(transcript, filename, 
+  #           append = FALSE, quote = FALSE, sep = " ", dec = " ",
+  #           row.names = FALSE, col.names = FALSE)
+}
+
+# print a file of document names, necessary for the HTMM
+# uncomment the write lines to do this for real
+for (i in 1:n_distinct(childes_print$g)) {
+  text = paste0("childes_gloss_for_htmm_", i)
+  #write(text, here("data/childes_gloss_doc_names"), append = TRUE)
+}
+
+# write your dictionary, which will be needed to decode the results of the HTMM
+# uncomment the write line below to do this for real
+#write.csv(dict, here("data/childes_gloss_word_dict.csv"))
+
+```
+
+Here is where you would run the HTMM, code available here: https://code.google.com/archive/p/openhtmm/ .
+
+After you've run it, read in your .pdwz and .phi files in the next chunk. Note that you may need to edit some of the code below if you use different file names.
+
+```{r analyze-htmm}
+# analyze htmm data
+dict <- read_csv(here("data/childes_gloss_word_dict.csv"))
+num_words = 46515
+cols = as.character(c(1:num_words))
+
+# read in phi values, or probability distributions of words in each topic
+phi_vals <- read_tsv(here("data/childes_gloss_15.phi"), col_names = cols, skip = 1)
+phi_vals$topic = seq.int(nrow(phi_vals))
+phi_vals <- phi_vals %>% select(topic, everything()) %>%
+  pivot_longer(cols = cols, names_to = "word_id", values_to = "phi") %>%
+  mutate(word = dict[match(word_id,dict$id),]$word)
+
+avg_topic <- phi_vals %>%
+  group_by(word, word_id) %>%
+  summarise(avg_phi = mean(phi))
+
+
+phi_vals <- phi_vals %>%
+  left_join(avg_topic) %>%
+  mutate(phi_dev = phi - avg_phi)
+
+
+phi_vals %>%
+  group_by(topic) %>%
+  arrange(desc(phi_dev)) %>%
+  View()
+  slice(1:15) %>%
+  mutate(num = 1:15) %>%
+  ungroup() %>%
+  select(topic, num, word) %>%
+  pivot_wider(names_from = topic, values_from = word) %>%
+  View()
+
+  
+# read pdwz vals, or the probabilities of topics for each utterance
+pdwz_vals_t <- read_tsv(here("data/childes_gloss_15.pdwz"))
+
+topics = c(1:15) 
+topics = sapply(topics, toString)
+topics = paste0("topic_", topics)
+topics_star = paste0(topics, "_*")
+
+pdwz_vals <- pdwz_vals_t %>%
+  mutate(doc_id = if_else(str_detect(topic_1, "d ="), 
+                          as.numeric(str_remove(topic_1, "d = ")), NA_real_),
+         utt_id = if_else(str_detect(topic_1, "i ="), 
+                          as.numeric(str_remove(topic_1, "i = ")), NA_real_),
+         utt_id = if_else(is.na(utt_id), lag(utt_id), utt_id)) %>%
+  mutate_at(topics_star,  funs(gsub("[*]", "", .))) %>%
+  fill(doc_id) %>%
+  filter(!str_detect(topic_1, "=")) %>%
+  mutate(doc_id = doc_id + 1, utt_id = utt_id + 1) %>%
+  mutate_all(as.numeric)
+
+pdwz_vals$max_topic <- apply(pdwz_vals %>% select(topics), 1, which.max)
+pdwz_vals$max_topic_prob <- apply(pdwz_vals %>% select(topics), 1, max)
+pdwz_vals$max_topic_star <- apply(pdwz_vals %>% select(topics_star), 1, which.max)
+pdwz_vals$max_topic_star_prob <- apply(pdwz_vals %>% select(topics_star), 1, max)
+
+```
+
+Now merge pdwz values into your main corpus file and write final files.
+
+```{r merge-pdwz}
+childes_htmm <- framed_childes %>%
+  group_by(transcript_id) %>%
+  mutate(doc_id = group_indices(),
+         utt_id = row_number(transcript_id)) %>%
+  ungroup() %>%
+  left_join(pdwz_vals, by = c("doc_id", "utt_id"))
+
+# to write corpus file, and pdwz and phi vals, uncomment write lines below 
+
+#write_feather(childes_htmm, here("data/childes_htmm_15.feather"))
+#write_csv(phi_vals, here("data/childes_phi_vals_15.csv"))
+#write_csv(pdwz_vals, here("data/childes_pdwz_vals_15.csv"))
+```
