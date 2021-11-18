@@ -12,7 +12,7 @@ author:
     affiliation   : "2"
     email         : "zmarshal@andrew.cmu.edu"
   - name          : "Simon DeDeo"
-    affiliation   : "2,4"
+    affiliation   : "3,4"
     email         : "sdedeo@andrew.cmu.edu"
   - name          : "Dan Yurovsky"
     affiliation   : "2"
@@ -29,7 +29,7 @@ affiliation:
     institution   : "Department of Social and Decision Sciences, Carnegie Mellon University"
 
 authornote: |
-  The authors thank Marisa Casillas and Thea Cameron-Faulkner for discussions about this work’s theoretical basis and Benjamin C. Morris, Ashley Leung, Megan Waller and Yuchen Zhou for feedback on the manuscript. The authors are grateful for discussion and questions from the Language Evolution, Acquisition, and Processing group and the Goldin-Meadow lab at the University of Chicago and the audience at the 43rd Annual Meeting of the Cognitive Science Society. This work was funded by the James S. McDonnell Foundation Scholar Award in Understanding Human Cognition to the last author and the Carnegie Mellon Summer Undergraduate Research Fellowship to the second author.
+  The authors thank Marisa Casillas and Thea Cameron-Faulkner for discussions about this work’s theoretical basis and Benjamin C. Morris, Ashley Leung, Megan Waller and Yuchen Zhou for feedback on the manuscript. The authors are grateful for discussion from the Language Evolution, Acquisition, and Processing group, the Goldin-Meadow lab, and the audience at the 43rd Annual Meeting of the Cognitive Science Society. This work was funded by the James S. McDonnell Foundation Scholar Award in Understanding Human Cognition to the last author and the Carnegie Mellon Summer Undergraduate Research Fellowship to the second author.
   
 
 abstract: |
@@ -38,7 +38,7 @@ abstract: |
   <!-- https://tinyurl.com/ybremelq -->
   
 keywords          : "language acquisition, corpus analysis, computational modeling, pragmatics, discourse"
-wordcount         : "4344"
+wordcount         : "4343"
 
 bibliography      : ["child-discourse.bib"]
 
@@ -358,9 +358,9 @@ Across our observed age range, both parents and children consistently increase t
 
 Notably, children at the lowest end of our age range start with at least some representation of several communicative act types, and expand their repertoire rapidly. One way to characterize the diversity of communicative acts a person engages in is to measure the entropy of their communicative acts. Children's communicative act entropy increases drastically over development until around 24 months, at which point it matches parents' entropy and remains relatively stable across the rest of our age range, as shown in Figure \ref{fig:entropy-plot}. Our automatically-identified communicative acts are therefore capturing some capacity that becomes more adult-like across development. 
 
-To characterize the learning process for these acts and compare it to word learning, we plot parents' and children's act entropies and the entropies of the words they produced in each transcript and fit a sigmoid function to children's trajectories (Figure \ref{fig:entropy-plot}; entropy values estimated using an implementation of the algorithm from @nemenman_entropy_2002). Words coded as babbling in the corpus were excluded from the measure of productive word use. We find that for both words and acts, children reach 90% of their final repertoire at roughly the same age, 24 months. Children's act entropy is growing most steeply at around 14 months, and their word entropy is growing most steeply at around 12 months. Meanwhile, parents are remarkably stable across all ages: parents provide a constant, high level of diversity of words and communicative acts. Prior work on speech acts has found that productive vocabulary relates to diversity of speech acts: @snow_learning_1996 found that the number of speech act types children use correlates highly with the number of word types they use. We replicate that finding here: children's number of communicative act types produced correlates with their word types produced, even within one-month age intervals (lowest correlation, r = 0.512, p < 0.001). 
+To characterize the learning process for these acts and compare it to word learning, we plot parents' and children's act entropies and the entropies of the words they produced in each transcript and fit a sigmoid function to children's trajectories (Figure \ref{fig:entropy-plot}; entropy values estimated using an implementation of the algorithm from @nemenman_entropy_2002). Words coded as babbling in the corpus were excluded from the measure of productive word use. We find that for both words and acts, children reach 90% of their final repertoire at roughly the same age, 24 months. Children's act entropy is growing most steeply at around 14 months, and their word entropy is growing most steeply at around 12 months. Meanwhile, parents are remarkably stable across all ages: parents provide a constant, high level of word and communicative act entropy. Prior work on speech acts has found that productive vocabulary relates to diversity of speech acts: @snow_learning_1996 found that the number of speech act types children use correlates highly with the number of word types they use. We replicate that finding here: children's number of communicative act types produced correlates with their word types produced, even within one-month age intervals (lowest correlation, r = 0.512, p < 0.001). 
 
-Within these trajectories there is variability between individuals in their communicative act diversity. Parents' and children's individual act entropies are correlated (r = 0.583, p < 0.001), and when divided into one-month age intervals remain correlated in all groups 12 months and older (lowest correlation, r = 0.321, p = 0.010): parents who are using more diverse communicative acts are talking to children who are using more diverse communicative acts. 
+Within these trajectories there is variability between individuals in their communicative act entropy. Parents' and children's individual act entropies are correlated (r = 0.583, p < 0.001), and when divided into one-month age intervals remain correlated in all groups 12 months and older (lowest correlation, r = 0.321, p = 0.010): parents who are using more diverse communicative acts are talking to children who are using more diverse communicative acts. 
 
 Having characterized qualitative and quantitative changes in children's act repertoire across development, we now ask how contingently parents and children use these acts in conversation.
 
