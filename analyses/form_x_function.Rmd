@@ -11,6 +11,7 @@ library(here)
 library(tidyboot)
 library(ggthemes)
 library(feather)
+library(childesr)
 
 theme_set(theme_few(base_size = 10))
 ```
@@ -151,5 +152,20 @@ mis_form_function %>%
   ylab("Mutual Information (bits)") +
   xlab("Age") +
   ggtitle("Mutual information between form and function over development")
+
+```
+
+
+```{r}
+get_anti_frame <- function(gloss, frame) {
+  split_gloss = unlist(strsplit(gloss, " "))
+  split_frame = unlist(strsplit(frame, " "))
+  anti_frame <- split_gloss[!split_gloss %in% split_frame]
+  return(paste(unlist(anti_frame), collapse=' '))
+}
+get_anti_frame <- Vectorize(get_anti_frame)
+
+childes_htmm_pdwz <- childes_htmm_pdwz %>%
+  mutate(anti_frame = get_anti_frame(gloss, utt_parse))
 
 ```

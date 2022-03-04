@@ -114,14 +114,13 @@ measures <- full_join(ppvt, cdi_ws, by = c("subject", "visit", "age_years")) %>%
   arrange(subject, measure, visit) %>%
   mutate(person = "child")
 
-write_feather(measures, here("data/measures.feather"))
+#write_feather(measures, here("data/measures.feather"))
 ```
 
-Set up utterances for computing alignment
 ```{r setup_alignment, eval = F}
 # read data from sql connection
-utterances <- tbl(ldp, "utterances") %>%
-  select(subject, session, line, p_chat, c_chat) %>%
+utterances <- get_table(ldp, "utterances") %>%
+  select(subject, session, line, p_chat, c_chat, p_utts, c_utts, p_mor, c_mor) %>%
   filter(p_chat != "" | c_chat != "") %>%
   collect() %>%
   filter(subject %in% unique(visits$id)) %>%
@@ -129,6 +128,16 @@ utterances <- tbl(ldp, "utterances") %>%
   
 # better organization of chat by person, subject, session, run
 split_utts <- utterances %>%
+  unnest_tokens(p_PoS, p_mor, drop=FALSE, token = stringr::str_split, pattern = " ") %>%
+  unnest_tokens(c_PoS, c_mor, drop=FALSE, token = stringr::str_split, pattern = " ") %>%
+  mutate(pos = if_else(!is.na(p_PoS), p_PoS, c_PoS)) %>%
+  filter(pos != "") %>%
+  separate(pos, into=c("pos", "word"), sep="\\|") %>%
+  filter(!is.na(word)) %>%
+  separate(word, into=c("word", "garbage"), sep= "[^[:alnum:]]") %>%
+  mutate(stem = wordStem(word)) %>%  
+  select(-garbage)
+
   gather(person, chat, c(p_chat, c_chat)) %>%
   mutate(person = if_else(person == "p_chat", "Parent", "Child")) %>%
   filter(chat != "") %>%
@@ -143,7 +152,18 @@ tokens <- split_utts %>%
   arrange(run, subject, session) %>%
   filter(!word %in% c("xxx", "zzz", "zz"))
 
-write_feather(tokens, here("data/tokens.feather"))
+clean_utts <- utterances %>%
+  select(-p_chat, -c_chat) %>%
+  mutate(clean_p_utts = str_squish(str_replace_all(p_utts, "[^a-zA-Z']", " ")),
+         clean_c_utts = str_squish(str_replace_all(c_utts, "[^a-zA-Z']", " ")),
+         clean_p_utts = if_else(clean_p_utts == "", NA_character_, clean_p_utts),
+         clean_c_utts = if_else(clean_c_utts == "", NA_character_, clean_c_utts),
+         speaker = case_when(is.na(clean_p_utts) & !is.na(clean_c_utts) ~ "Target_Child",
+                             is.na(clean_c_utts) & !is.na(clean_p_utts) ~ "Parent",
+                             !is.na(clean_c_utts) & !is.na(clean_p_utts) ~ "Both"))
+  
+ 
+#write_feather(tokens, here("data/tokens.feather"))
 ```
 
 
@@ -282,4 +302,19 @@ subj_entropies %>%
               summarise(tokens = mean(tokens))) %>%
   group_by(person) %>%
   summarise(cor = cor(entropy, tokens, use = "complete"))
-``````
+```
+
+
+```{r process-for-crf}
+processed_ldp <- split_utts %>%
+  mutate(chat = str_remove(chat, "&")) %>%
+  rename(file_id = session,
+         child_id = subject,
+         age_months = 14 + 4*session,
+         tokens = chat,
+         pos = part_of_speech,
+         speaker = speaker_role) %>%
+  mutate(index = 1:n() - 1)
+
+```
+

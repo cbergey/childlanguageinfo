@@ -135,5 +135,5 @@ dataFrameCorpus[,9] <- gsub(":", "", dataFrameCorpus[,9])
 dataFrameCorpus[,9] <- gsub("[\\$]", "", dataFrameCorpus[,9])
 
 
-write.csv(dataFrameCorpus, "/Users/zoemarshall/Downloads/childlanguageinfo/data/newEnglandSpeechActs.csv")
+write.csv(dataFrameCorpus, here("data/newEnglandSpeechActs.csv"))
 ```

@@ -17,8 +17,52 @@ library(randomizeR)
 library(purrr)
 library(gsl)
 library(hash)
+#code for connecting to ldp
+  # note this file is not included in the public repo of this project
+  # as it contains senstive access keys.
+source(here("helpers/read_ldp.R"))
+#establish connection, requires vpn to run sucessfully
+ldp <- connect_to_ldp()
 ```
 
+```{r}
+list_tables <- function(connection) {
+  DBI::dbListTables(connection)
+}
+
+get_table <- function(connection, name) {
+  dplyr::tbl(connection, name)
+}
+
+list_tables(ldp)
+subs <- get_table(ldp, "subjects") %>% collect()
+
+#sub ids for typically developing kids
+typ_kids <- subs %>%
+  filter(lesion == "") %>% 
+  filter(project == 2) %>% 
+  pull(id)
+```
+
+```{r ldp}
+#pull all the utterances
+utts <- get_table(ldp, "utterances") %>%
+  collect()
+
+
+utts_clean <- utts %>%
+  #include only typically developing participants
+  filter(subject %in% typ_kids) %>%
+  #drop the many things we don't care about
+  select(subject, session, p_chat, p_mor)  %>%
+  #add new utt_id variable
+  mutate(utt_id= row_number())
+
+PoS <- utts_clean %>% 
+  unnest_tokens(PoS, p_mor, drop=FALSE, token = stringr::str_split, pattern = " ") %>%
+  filter(PoS != "")
+
+```
 
 ```{r read_feather}
 framed_childes <- 

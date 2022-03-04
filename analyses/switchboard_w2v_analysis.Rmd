@@ -19,38 +19,114 @@ switchboard <- read_feather(here("data/switchboard.feather"))
 switchboard <- switchboard %>%
   group_by(file) %>%
   mutate(utt_id = row_number(),
-         transcript_id = cur_group_id(),
-         speaker = if_else(utt_id %% 2 == 0, "speaker_2", "speaker_1")) %>%
-  ungroup()
+         transcript_id = cur_group_id()) %>%
+  ungroup() %>%
+  select(-file)
 ```
 
 ```{r get-word-crosses}
 num_combns <- function(length, p = 2) {
   return(factorial(length)/(factorial(p)*factorial(length - p)))
 }
+
 crossed_switchboard <- switchboard %>%
   mutate(split_utt = str_split(text, " "),
          n_words = stringr::str_count(text, ' ') + 1) %>%
   filter(n_words > 1) 
+  
 
 cross <- lapply(crossed_switchboard$split_utt, combn, 2, simplify = FALSE)
+cross_unlist <- unlist(cross)
+word1 <- character(length(cross_unlist)/2)
+word2 <- character(length(cross_unlist)/2)
+for (i in 1:length(cross_unlist)) {
+  if (i%%2 == 0) {
+    word2[i/2] = cross_unlist[i]
+  } else {
+    word1[(i+1)/2] = cross_unlist[i]
+  }
+}
+cross_tibble <- tibble(word1,word2)
+cross_tibble <- cross_tibble %>% distinct()
+rm(crossed_switchboard)
+rm(cross)
+rm(cross_unlist)
+rm(word1)
+rm(word2)
 ```
 
 ```{python}
+import scipy
 import gensim
 from gensim import utils
 import gensim.models
 import gensim.models.word2vec
 from gensim.test.utils import datapath
+from gensim.models import KeyedVectors
 wiki_model = KeyedVectors.load_word2vec_format('./data/wiki-news-300d-1M.vec')
 word_sim_dict = {}
 
-for utt in r.cross:
-  for word1, word2 in utt:
-    print(word1)
+for word1, word2 in zip(r.cross_tibble['word1'], r.cross_tibble['word2']):
+  if word1 in wiki_model.vocab and word2 in wiki_model.vocab:
+    word_sim_dict[word1 + " " + word2] = wiki_model.distance(word1, word2)
+  else:
+    word_sim_dict[word1 + " " + word2] = "NA"
+```
+
+```{r sims}
+sims <- py$word_sim_dict %>% unlist() %>% as.list() %>% as_tibble() %>%
+  t() %>% as_tibble(rownames = "name") 
+
+colnames(sims) = c("name", "similarity")
+
+sims <- sims %>%
+  mutate(word1 = gsub(" .*$", "", name), word2 = gsub(".* ", "", name)) %>%
+  select(word1, word2, similarity) %>%
+  mutate(similarity = if_else(similarity == "NA", NA_real_, as.numeric(similarity)),
+         distance = if_else(is.na(similarity), NA_real_, (1 - similarity)))
+rm(cross_tibble)
 ```
 
 ```{r }
+get_distance <- function(first_word, second_word) {
+  val = pull(sims[sims$word1 == first_word & sims$word2 == second_word, "distance"])
+  return(if_else(is.na(val), 0.0, val))
+}
 
 
+get_radius <- function(combos) {
+  sum = 0.0
+  for (i in 1:length(combos)) {
+    dist <- get_distance(combos[[i]][1], combos[[i]][2])
+    if (length(dist) == 0) { dist = 0.0 }
+    sum = sum + dist
+  }
+  return(sum/(n*(n-1)))
+}
+
+get_radius_v <- Vectorize(get_radius)
+
+sample_convo <- switchboard %>%
+  filter(transcript_id == 1)
+
+
+sample_convo <- sample_convo %>%
+  mutate(split_utt = str_split(tolower(text), " ")) %>%
+  mutate(radius = get_radius_v(split_utt))
+
+switchboard_100 <- switchboard %>%
+  filter(transcript_id < 101)
+
+my_combn <- function(utt, num) {
+  return(combn(utt, num, simplify = FALSE))
+}
+
+combn_v <- Vectorize(my_combn)
+
+switchboard_100 <- switchboard_100 %>%
+  mutate(split_utt = str_split(tolower(text), " "),
+         n_words = stringr::str_count(text, ' ') + 1) %>%
+  filter(n_words > 1) %>%
+  mutate(combos = combn_v(split_utt, 2)) %>%
+  mutate(radius = get_radius_v(combos))
 ```
